@@ -119,17 +119,17 @@ export default function Admin({ onClose }: AdminProps) {
   const { data: stats } = useQuery({
     queryKey: ['/api/admin/stats'],
     enabled: isAuthenticated,
-  });
+  }) as { data: any };
 
   const { data: orders = [] } = useQuery({
     queryKey: ['/api/admin/orders'],
     enabled: isAuthenticated && activeTab === 'orders',
-  });
+  }) as { data: any[] };
 
   const { data: products = [] } = useQuery({
     queryKey: ['/api/products'],
     enabled: isAuthenticated && activeTab === 'products',
-  });
+  }) as { data: any[] };
 
   const updateOrderMutation = useMutation({
     mutationFn: ({ orderId, status }: { orderId: string; status: string }) => 
@@ -256,14 +256,14 @@ export default function Admin({ onClose }: AdminProps) {
 
           <div className="p-6">
             {/* Stats Cards */}
-            {stats && (
+            {stats && stats.totalProducts !== undefined && (
               <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
                 <Card>
                   <CardContent className="p-6">
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-muted-foreground text-sm">Total Products</p>
-                        <p className="text-2xl font-bold text-foreground">{stats.totalProducts}</p>
+                        <p className="text-2xl font-bold text-foreground">{stats?.totalProducts || 0}</p>
                       </div>
                       <div className="w-12 h-12 bg-primary/10 rounded-xl flex items-center justify-center">
                         <Box className="text-primary w-6 h-6" />
@@ -277,7 +277,7 @@ export default function Admin({ onClose }: AdminProps) {
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-muted-foreground text-sm">Low Stock</p>
-                        <p className="text-2xl font-bold text-destructive">{stats.lowStock}</p>
+                        <p className="text-2xl font-bold text-destructive">{stats?.lowStock || 0}</p>
                       </div>
                       <div className="w-12 h-12 bg-destructive/10 rounded-xl flex items-center justify-center">
                         <Box className="text-destructive w-6 h-6" />
@@ -291,7 +291,7 @@ export default function Admin({ onClose }: AdminProps) {
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-muted-foreground text-sm">Categories</p>
-                        <p className="text-2xl font-bold text-foreground">{stats.categories}</p>
+                        <p className="text-2xl font-bold text-foreground">{stats?.categories || 0}</p>
                       </div>
                       <div className="w-12 h-12 bg-accent/10 rounded-xl flex items-center justify-center">
                         <Box className="text-accent-foreground w-6 h-6" />
@@ -305,7 +305,7 @@ export default function Admin({ onClose }: AdminProps) {
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-muted-foreground text-sm">Total Value</p>
-                        <p className="text-2xl font-bold text-foreground">{stats.totalValue}</p>
+                        <p className="text-2xl font-bold text-foreground">{stats?.totalValue || 'NPR 0'}</p>
                       </div>
                       <div className="w-12 h-12 bg-chart-1/10 rounded-xl flex items-center justify-center">
                         <Box className="text-chart-1 w-6 h-6" />

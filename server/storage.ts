@@ -110,6 +110,8 @@ export class MemStorage implements IStorage {
       const fullProduct: Product = {
         ...product,
         id,
+        stock: product.stock || 0,
+        artisan: product.artisan || null,
         isActive: true,
         createdAt: new Date(),
         updatedAt: new Date(),
@@ -131,6 +133,8 @@ export class MemStorage implements IStorage {
     const user: User = {
       ...insertUser,
       id,
+      role: insertUser.role || 'customer',
+      phone: insertUser.phone || null,
       createdAt: new Date(),
     };
     this.users.set(id, user);
@@ -168,6 +172,8 @@ export class MemStorage implements IStorage {
     const product: Product = {
       ...insertProduct,
       id,
+      stock: insertProduct.stock || 0,
+      artisan: insertProduct.artisan || null,
       isActive: true,
       createdAt: new Date(),
       updatedAt: new Date(),
@@ -210,6 +216,8 @@ export class MemStorage implements IStorage {
       const product: Product = {
         ...insertProduct,
         id,
+        stock: insertProduct.stock || 0,
+        artisan: insertProduct.artisan || null,
         isActive: true,
         createdAt: new Date(),
         updatedAt: new Date(),
@@ -266,14 +274,14 @@ export class MemStorage implements IStorage {
       id: orderId,
       customerName: orderData.customerName,
       customerPhone: orderData.customerPhone,
-      customerEmail: orderData.customerEmail,
+      customerEmail: orderData.customerEmail || null,
       province: orderData.province,
       district: orderData.district,
       municipality: orderData.municipality,
       ward: orderData.ward,
       detailedAddress: orderData.detailedAddress,
-      postalCode: orderData.postalCode,
-      specialInstructions: orderData.specialInstructions,
+      postalCode: orderData.postalCode || null,
+      specialInstructions: orderData.specialInstructions || null,
       total: total.toFixed(2),
       status: "pending",
       createdAt: new Date(),
