@@ -7,9 +7,15 @@ import {
   type InsertOrder,
   type OrderItem,
   type InsertOrderItem,
-  type OrderWithItems
+  type OrderWithItems,
+  users,
+  products,
+  orders,
+  orderItems,
 } from "@shared/schema";
-import { randomUUID } from "crypto";
+import { db } from "./db";
+import { eq, and, like, sql } from "drizzle-orm";
+import bcrypt from "bcrypt";
 
 export interface IStorage {
   // User management
@@ -41,31 +47,35 @@ export interface IStorage {
   }>;
 }
 
-export class MemStorage implements IStorage {
-  private users: Map<string, User> = new Map();
-  private products: Map<string, Product> = new Map();
-  private orders: Map<string, Order> = new Map();
-  private orderItems: Map<string, OrderItem[]> = new Map();
-
+// Referenced from blueprint:javascript_database
+export class DatabaseStorage implements IStorage {
+  
   constructor() {
-    // Seed admin user
-    const adminId = randomUUID();
-    const admin: User = {
-      id: adminId,
-      email: "admin@krishakrafts.com",
-      password: "$2b$10$6vVzNzNzNzNzNzNzNzNzNu", // hashed "admin123"
-      name: "Admin User",
-      phone: "9841234567",
-      role: "admin",
-      createdAt: new Date(),
-    };
-    this.users.set(adminId, admin);
-
-    // Seed some sample products
-    this.seedProducts();
+    // Initialize with admin user and sample data
+    this.initializeData();
   }
 
-  private seedProducts() {
+  private async initializeData() {
+    // Check if admin user exists
+    const existingAdmin = await this.getUserByEmail("admin@krishakrafts.com");
+    
+    if (!existingAdmin) {
+      // Create admin user
+      const hashedPassword = await bcrypt.hash("admin123", 10);
+      await db.insert(users).values({
+        email: "admin@krishakrafts.com",
+        password: hashedPassword,
+        name: "Admin User",
+        phone: "9841234567",
+        role: "admin",
+      }).onConflictDoNothing();
+
+      // Seed sample products
+      await this.seedProducts();
+    }
+  }
+
+  private async seedProducts() {
     const sampleProducts: InsertProduct[] = [
       {
         name: "Felt Ball Coasters Set",
@@ -105,218 +115,244 @@ export class MemStorage implements IStorage {
       }
     ];
 
-    sampleProducts.forEach(product => {
-      const id = randomUUID();
-      const fullProduct: Product = {
-        ...product,
-        id,
-        stock: product.stock || 0,
-        artisan: product.artisan || null,
-        isActive: true,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      };
-      this.products.set(id, fullProduct);
-    });
+    await db.insert(products).values(sampleProducts).onConflictDoNothing();
   }
 
   async getUser(id: string): Promise<User | undefined> {
-    return this.users.get(id);
+    const [user] = await db.select().from(users).where(eq(users.id, id));
+    return user || undefined;
   }
 
   async getUserByEmail(email: string): Promise<User | undefined> {
-    return Array.from(this.users.values()).find(user => user.email === email);
+    const [user] = await db.select().from(users).where(eq(users.email, email));
+    return user || undefined;
   }
 
   async createUser(insertUser: InsertUser): Promise<User> {
-    const id = randomUUID();
-    const user: User = {
-      ...insertUser,
-      id,
-      role: insertUser.role || 'customer',
-      phone: insertUser.phone || null,
-      createdAt: new Date(),
-    };
-    this.users.set(id, user);
+    const [user] = await db
+      .insert(users)
+      .values({
+        ...insertUser,
+        role: insertUser.role || 'customer',
+      })
+      .returning();
     return user;
   }
 
   async getProducts(filters?: { category?: string; inStock?: boolean; search?: string }): Promise<Product[]> {
-    let products = Array.from(this.products.values()).filter(p => p.isActive);
+    let query = db.select().from(products).where(eq(products.isActive, true));
+    
+    const conditions = [eq(products.isActive, true)];
     
     if (filters?.category) {
-      products = products.filter(p => p.category === filters.category);
+      conditions.push(eq(products.category, filters.category));
     }
     
     if (filters?.inStock) {
-      products = products.filter(p => p.stock > 0);
+      conditions.push(sql`${products.stock} > 0`);
     }
     
     if (filters?.search) {
-      const searchLower = filters.search.toLowerCase();
-      products = products.filter(p => 
-        p.name.toLowerCase().includes(searchLower) ||
-        p.description.toLowerCase().includes(searchLower)
+      conditions.push(
+        sql`(${products.name} ILIKE ${'%' + filters.search + '%'} OR ${products.description} ILIKE ${'%' + filters.search + '%'})`
       );
     }
-    
-    return products.sort((a, b) => b.createdAt!.getTime() - a.createdAt!.getTime());
+
+    const result = await db.select().from(products).where(and(...conditions));
+    return result;
   }
 
   async getProduct(id: string): Promise<Product | undefined> {
-    return this.products.get(id);
+    const [product] = await db.select().from(products).where(eq(products.id, id));
+    return product || undefined;
   }
 
   async createProduct(insertProduct: InsertProduct): Promise<Product> {
-    const id = randomUUID();
-    const product: Product = {
-      ...insertProduct,
-      id,
-      stock: insertProduct.stock || 0,
-      artisan: insertProduct.artisan || null,
-      isActive: true,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
-    this.products.set(id, product);
+    const [product] = await db
+      .insert(products)
+      .values({
+        ...insertProduct,
+        stock: insertProduct.stock || 0,
+        artisan: insertProduct.artisan || null,
+      })
+      .returning();
     return product;
   }
 
   async updateProduct(id: string, updateData: Partial<InsertProduct>): Promise<Product | undefined> {
-    const product = this.products.get(id);
-    if (!product) return undefined;
-    
-    const updated: Product = {
-      ...product,
-      ...updateData,
-      updatedAt: new Date(),
-    };
-    this.products.set(id, updated);
-    return updated;
+    const [product] = await db
+      .update(products)
+      .set({
+        ...updateData,
+        updatedAt: new Date(),
+      })
+      .where(eq(products.id, id))
+      .returning();
+    return product || undefined;
   }
 
   async deleteProduct(id: string): Promise<boolean> {
-    const product = this.products.get(id);
-    if (!product) return false;
-    
-    const updated: Product = {
-      ...product,
-      isActive: false,
-      updatedAt: new Date(),
-    };
-    this.products.set(id, updated);
-    return true;
+    const result = await db
+      .update(products)
+      .set({ isActive: false })
+      .where(eq(products.id, id));
+    return (result.rowCount || 0) > 0;
   }
 
-  async bulkCreateProducts(insertProducts: InsertProduct[]): Promise<Product[]> {
-    const products: Product[] = [];
-    
-    for (const insertProduct of insertProducts) {
-      const id = randomUUID();
-      const product: Product = {
-        ...insertProduct,
-        id,
-        stock: insertProduct.stock || 0,
-        artisan: insertProduct.artisan || null,
-        isActive: true,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      };
-      this.products.set(id, product);
-      products.push(product);
-    }
-    
-    return products;
+  async bulkCreateProducts(productsData: InsertProduct[]): Promise<Product[]> {
+    const result = await db
+      .insert(products)
+      .values(productsData.map(p => ({
+        ...p,
+        stock: p.stock || 0,
+        artisan: p.artisan || null,
+      })))
+      .returning();
+    return result;
   }
 
   async decrementStock(productId: string, quantity: number): Promise<boolean> {
-    const product = this.products.get(productId);
-    if (!product || product.stock < quantity) return false;
-    
-    const updated: Product = {
-      ...product,
-      stock: product.stock - quantity,
-      updatedAt: new Date(),
-    };
-    this.products.set(productId, updated);
-    return true;
+    const result = await db
+      .update(products)
+      .set({
+        stock: sql`${products.stock} - ${quantity}`,
+        updatedAt: new Date(),
+      })
+      .where(and(
+        eq(products.id, productId),
+        sql`${products.stock} >= ${quantity}`
+      ));
+    return (result.rowCount || 0) > 0;
   }
 
   async createOrder(orderData: OrderWithItems): Promise<Order> {
-    const orderId = randomUUID();
-    
-    // Calculate total
-    let total = 0;
-    const items: OrderItem[] = [];
-    
-    for (const item of orderData.items) {
-      const product = this.products.get(item.productId);
-      if (!product) throw new Error(`Product not found: ${item.productId}`);
+    const result = await db.transaction(async (tx) => {
+      // Calculate total
+      let total = 0;
+      const orderItemsData: InsertOrderItem[] = [];
+
+      for (const item of orderData.items) {
+        const [product] = await tx.select().from(products).where(eq(products.id, item.productId));
+        if (!product) {
+          throw new Error(`Product not found: ${item.productId}`);
+        }
+        
+        // Check stock
+        if (product.stock < item.quantity) {
+          throw new Error(`Insufficient stock for ${product.name}. Available: ${product.stock}, Requested: ${item.quantity}`);
+        }
+
+        const itemTotal = parseFloat(product.price) * item.quantity;
+        total += itemTotal;
+
+        orderItemsData.push({
+          productId: item.productId,
+          productName: product.name,
+          productPrice: product.price,
+          quantity: item.quantity,
+          orderId: '', // Will be set after order creation
+        });
+
+        // Decrement stock
+        await tx
+          .update(products)
+          .set({
+            stock: sql`${products.stock} - ${item.quantity}`,
+            updatedAt: new Date(),
+          })
+          .where(eq(products.id, item.productId));
+      }
+
+      // Create order
+      const [order] = await tx
+        .insert(orders)
+        .values({
+          customerName: orderData.customerName,
+          customerPhone: orderData.customerPhone,
+          customerEmail: orderData.customerEmail || null,
+          province: orderData.province,
+          district: orderData.district,
+          municipality: orderData.municipality,
+          ward: orderData.ward,
+          detailedAddress: orderData.detailedAddress,
+          postalCode: orderData.postalCode || null,
+          specialInstructions: orderData.specialInstructions || null,
+          total: total.toFixed(2),
+          status: "pending",
+        })
+        .returning();
+
+      // Create order items
+      await tx
+        .insert(orderItems)
+        .values(orderItemsData.map(item => ({ ...item, orderId: order.id })));
+
+      console.log(`Order created: ${order.id} for ${order.customerName}`);
       
-      const itemTotal = parseFloat(product.price) * item.quantity;
-      total += itemTotal;
-      
-      const orderItem: OrderItem = {
-        id: randomUUID(),
-        orderId,
-        productId: item.productId,
-        productName: product.name,
-        productPrice: product.price,
-        quantity: item.quantity,
-      };
-      items.push(orderItem);
-      
-      // Decrement stock
-      await this.decrementStock(item.productId, item.quantity);
-    }
-    
-    const order: Order = {
-      id: orderId,
-      customerName: orderData.customerName,
-      customerPhone: orderData.customerPhone,
-      customerEmail: orderData.customerEmail || null,
-      province: orderData.province,
-      district: orderData.district,
-      municipality: orderData.municipality,
-      ward: orderData.ward,
-      detailedAddress: orderData.detailedAddress,
-      postalCode: orderData.postalCode || null,
-      specialInstructions: orderData.specialInstructions || null,
-      total: total.toFixed(2),
-      status: "pending",
-      createdAt: new Date(),
-    };
-    
-    this.orders.set(orderId, order);
-    this.orderItems.set(orderId, items);
-    
-    return order;
+      return order;
+    });
+
+    return result;
   }
 
   async getOrders(): Promise<(Order & { items: OrderItem[] })[]> {
-    return Array.from(this.orders.values()).map(order => ({
-      ...order,
-      items: this.orderItems.get(order.id) || []
-    })).sort((a, b) => b.createdAt!.getTime() - a.createdAt!.getTime());
+    const ordersWithItems = await db
+      .select({
+        order: orders,
+        item: orderItems,
+      })
+      .from(orders)
+      .leftJoin(orderItems, eq(orders.id, orderItems.orderId))
+      .orderBy(sql`${orders.createdAt} DESC`);
+
+    // Group items by order
+    const orderMap = new Map<string, Order & { items: OrderItem[] }>();
+
+    ordersWithItems.forEach(({ order, item }) => {
+      if (!orderMap.has(order.id)) {
+        orderMap.set(order.id, { ...order, items: [] });
+      }
+      if (item) {
+        orderMap.get(order.id)!.items.push(item);
+      }
+    });
+
+    return Array.from(orderMap.values());
   }
 
   async getOrdersByCustomer(phone: string): Promise<(Order & { items: OrderItem[] })[]> {
-    return Array.from(this.orders.values())
-      .filter(order => order.customerPhone === phone)
-      .map(order => ({
-        ...order,
-        items: this.orderItems.get(order.id) || []
-      }))
-      .sort((a, b) => b.createdAt!.getTime() - a.createdAt!.getTime());
+    const ordersWithItems = await db
+      .select({
+        order: orders,
+        item: orderItems,
+      })
+      .from(orders)
+      .leftJoin(orderItems, eq(orders.id, orderItems.orderId))
+      .where(eq(orders.customerPhone, phone))
+      .orderBy(sql`${orders.createdAt} DESC`);
+
+    // Group items by order
+    const orderMap = new Map<string, Order & { items: OrderItem[] }>();
+
+    ordersWithItems.forEach(({ order, item }) => {
+      if (!orderMap.has(order.id)) {
+        orderMap.set(order.id, { ...order, items: [] });
+      }
+      if (item) {
+        orderMap.get(order.id)!.items.push(item);
+      }
+    });
+
+    return Array.from(orderMap.values());
   }
 
   async updateOrderStatus(id: string, status: string): Promise<Order | undefined> {
-    const order = this.orders.get(id);
-    if (!order) return undefined;
-    
-    const updated: Order = { ...order, status };
-    this.orders.set(id, updated);
-    return updated;
+    const [order] = await db
+      .update(orders)
+      .set({ status })
+      .where(eq(orders.id, id))
+      .returning();
+    return order || undefined;
   }
 
   async getProductStats(): Promise<{
@@ -325,7 +361,8 @@ export class MemStorage implements IStorage {
     categories: number;
     totalValue: string;
   }> {
-    const activeProducts = Array.from(this.products.values()).filter(p => p.isActive);
+    const activeProducts = await db.select().from(products).where(eq(products.isActive, true));
+    
     const lowStock = activeProducts.filter(p => p.stock < 5).length;
     const categories = new Set(activeProducts.map(p => p.category)).size;
     const totalValue = activeProducts.reduce((sum, p) => sum + (parseFloat(p.price) * p.stock), 0);
@@ -339,4 +376,4 @@ export class MemStorage implements IStorage {
   }
 }
 
-export const storage = new MemStorage();
+export const storage = new DatabaseStorage();
