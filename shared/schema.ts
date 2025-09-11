@@ -13,6 +13,17 @@ export const users = pgTable("users", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+export const categories = pgTable("categories", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  slug: text("slug").notNull().unique(),
+  description: text("description"),
+  icon: text("icon"), // Unicode emoji or icon class
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 export const products = pgTable("products", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   name: text("name").notNull(),
@@ -20,7 +31,8 @@ export const products = pgTable("products", {
   price: decimal("price", { precision: 10, scale: 2 }).notNull(),
   image: text("image").notNull(),
   stock: integer("stock").notNull().default(0),
-  category: text("category").notNull(), // 'felt-crafts' | 'statues' | 'prayer-wheels' | 'handlooms'
+  categoryId: varchar("category_id").references(() => categories.id), // Optional during migration
+  category: text("category").notNull(), // Keep for backward compatibility during migration
   artisan: text("artisan"),
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at").defaultNow(),
@@ -59,6 +71,13 @@ export const insertUserSchema = createInsertSchema(users).pick({
   role: true,
 });
 
+export const insertCategorySchema = createInsertSchema(categories).pick({
+  name: true,
+  slug: true,
+  description: true,
+  icon: true,
+});
+
 export const insertProductSchema = createInsertSchema(products).pick({
   name: true,
   description: true,
@@ -91,6 +110,8 @@ export const insertOrderItemSchema = createInsertSchema(orderItems).pick({
 // Types
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
+export type Category = typeof categories.$inferSelect;
+export type InsertCategory = z.infer<typeof insertCategorySchema>;
 export type Product = typeof products.$inferSelect;
 export type InsertProduct = z.infer<typeof insertProductSchema>;
 export type Order = typeof orders.$inferSelect;

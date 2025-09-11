@@ -1,6 +1,8 @@
 import { 
   type User, 
   type InsertUser, 
+  type Category,
+  type InsertCategory,
   type Product, 
   type InsertProduct,
   type Order,
@@ -9,6 +11,7 @@ import {
   type InsertOrderItem,
   type OrderWithItems,
   users,
+  categories,
   products,
   orders,
   orderItems,
@@ -22,6 +25,13 @@ export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
   getUserByEmail(email: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
+  
+  // Category management
+  getCategories(): Promise<Category[]>;
+  getCategory(id: string): Promise<Category | undefined>;
+  createCategory(category: InsertCategory): Promise<Category>;
+  updateCategory(id: string, category: Partial<InsertCategory>): Promise<Category | undefined>;
+  deleteCategory(id: string): Promise<boolean>;
   
   // Product management
   getProducts(filters?: { category?: string; inStock?: boolean; search?: string }): Promise<Product[]>;
@@ -70,9 +80,41 @@ export class DatabaseStorage implements IStorage {
         role: "admin",
       }).onConflictDoNothing();
 
-      // Seed sample products
+      // Seed categories and sample products
+      await this.seedCategories();
       await this.seedProducts();
     }
+  }
+
+  private async seedCategories() {
+    const sampleCategories: InsertCategory[] = [
+      {
+        name: "Felt Crafts",
+        slug: "felt-crafts",
+        description: "Beautiful handmade felt products crafted by skilled artisans",
+        icon: "🧶"
+      },
+      {
+        name: "Statues",
+        slug: "statues", 
+        description: "Traditional Buddhist and Hindu statues for meditation and decoration",
+        icon: "🏛️"
+      },
+      {
+        name: "Prayer Wheels",
+        slug: "prayer-wheels",
+        description: "Authentic Tibetan prayer wheels with traditional mantras",
+        icon: "☸️"
+      },
+      {
+        name: "Handlooms",
+        slug: "handlooms",
+        description: "Traditional handwoven textiles and fabrics",
+        icon: "🧵"
+      }
+    ];
+
+    await db.insert(categories).values(sampleCategories).onConflictDoNothing();
   }
 
   private async seedProducts() {
@@ -137,6 +179,47 @@ export class DatabaseStorage implements IStorage {
       })
       .returning();
     return user;
+  }
+
+  // Category management methods
+  async getCategories(): Promise<Category[]> {
+    return await db.select().from(categories).where(eq(categories.isActive, true)).orderBy(categories.name);
+  }
+
+  async getCategory(id: string): Promise<Category | undefined> {
+    const [category] = await db.select().from(categories).where(eq(categories.id, id));
+    return category || undefined;
+  }
+
+  async createCategory(insertCategory: InsertCategory): Promise<Category> {
+    const [category] = await db
+      .insert(categories)
+      .values(insertCategory)
+      .returning();
+    return category;
+  }
+
+  async updateCategory(id: string, updates: Partial<InsertCategory>): Promise<Category | undefined> {
+    const [category] = await db
+      .update(categories)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(categories.id, id))
+      .returning();
+    return category || undefined;
+  }
+
+  async deleteCategory(id: string): Promise<boolean> {
+    // Check if any products use this category
+    const [productsUsingCategory] = await db.select({ count: sql<number>`count(*)` })
+      .from(products)
+      .where(eq(products.category, id));
+      
+    if (productsUsingCategory.count > 0) {
+      return false; // Cannot delete category that has products
+    }
+
+    const result = await db.delete(categories).where(eq(categories.id, id));
+    return (result.rowCount ?? 0) > 0;
   }
 
   async getProducts(filters?: { category?: string; inStock?: boolean; search?: string }): Promise<Product[]> {
