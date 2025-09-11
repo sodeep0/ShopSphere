@@ -18,6 +18,9 @@ import {
   createProduct, 
   updateProduct, 
   deleteProduct,
+  createCategory,
+  updateCategory,
+  deleteCategory,
   setAuthToken,
   clearAuthToken,
   getAuthToken 
@@ -113,6 +116,8 @@ export default function Admin({ onClose }: AdminProps) {
   const [activeTab, setActiveTab] = useState("products");
   const [showProductDialog, setShowProductDialog] = useState(false);
   const [editingProduct, setEditingProduct] = useState<any>(null);
+  const [showCategoryDialog, setShowCategoryDialog] = useState(false);
+  const [editingCategory, setEditingCategory] = useState<any>(null);
   const [showOrderDetailsDialog, setShowOrderDetailsDialog] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<any>(null);
   const { toast } = useToast();
@@ -131,6 +136,11 @@ export default function Admin({ onClose }: AdminProps) {
   const { data: products = [] } = useQuery({
     queryKey: ['/api/products'],
     enabled: isAuthenticated && activeTab === 'products',
+  }) as { data: any[] };
+
+  const { data: categories = [] } = useQuery({
+    queryKey: ['/api/categories'],
+    enabled: isAuthenticated && activeTab === 'categories',
   }) as { data: any[] };
 
   const updateOrderMutation = useMutation({
@@ -153,6 +163,52 @@ export default function Admin({ onClose }: AdminProps) {
       toast({
         title: "Product Deleted",
         description: "Product has been deleted successfully.",
+      });
+    },
+  });
+
+  const createCategoryMutation = useMutation({
+    mutationFn: createCategory,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/categories'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/stats'] });
+      setShowCategoryDialog(false);
+      setEditingCategory(null);
+      toast({
+        title: "Category Created",
+        description: "Category has been created successfully.",
+      });
+    },
+  });
+
+  const updateCategoryMutation = useMutation({
+    mutationFn: ({ id, data }: { id: string; data: any }) => updateCategory(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/categories'] });
+      setShowCategoryDialog(false);
+      setEditingCategory(null);
+      toast({
+        title: "Category Updated",
+        description: "Category has been updated successfully.",
+      });
+    },
+  });
+
+  const deleteCategoryMutation = useMutation({
+    mutationFn: deleteCategory,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/categories'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/stats'] });
+      toast({
+        title: "Category Deleted",
+        description: "Category has been deleted successfully.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        variant: "destructive",
+        title: "Delete Failed",
+        description: error.message || "Cannot delete category that has products.",
       });
     },
   });
@@ -212,6 +268,15 @@ export default function Admin({ onClose }: AdminProps) {
               Orders
             </Button>
             <Button
+              variant={activeTab === 'categories' ? 'default' : 'ghost'}
+              className="w-full justify-start"
+              onClick={() => setActiveTab('categories')}
+              data-testid="button-nav-categories"
+            >
+              <Settings className="w-4 h-4 mr-3" />
+              Categories
+            </Button>
+            <Button
               variant={activeTab === 'import' ? 'default' : 'ghost'}
               className="w-full justify-start"
               onClick={() => setActiveTab('import')}
@@ -243,6 +308,7 @@ export default function Admin({ onClose }: AdminProps) {
               <h1 className="text-2xl font-bold text-foreground">
                 {activeTab === 'products' && 'Product Management'}
                 {activeTab === 'orders' && 'Order Management'}
+                {activeTab === 'categories' && 'Category Management'}
                 {activeTab === 'import' && 'CSV Import'}
               </h1>
               <Button
@@ -402,6 +468,79 @@ export default function Admin({ onClose }: AdminProps) {
               </div>
             )}
 
+            {/* Categories Tab */}
+            {activeTab === 'categories' && (
+              <div>
+                <div className="flex justify-between items-center mb-6">
+                  <h2 className="text-xl font-semibold text-foreground">Categories</h2>
+                  <Button onClick={() => setShowCategoryDialog(true)} data-testid="button-add-category">
+                    <Plus className="w-4 h-4 mr-2" />
+                    Add Category
+                  </Button>
+                </div>
+
+                <Card>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Category</TableHead>
+                        <TableHead>Slug</TableHead>
+                        <TableHead>Description</TableHead>
+                        <TableHead>Icon</TableHead>
+                        <TableHead>Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {categories.map((category: any) => (
+                        <TableRow key={category.id}>
+                          <TableCell>
+                            <div className="flex items-center space-x-3">
+                              <div className="text-2xl">{category.icon}</div>
+                              <div>
+                                <p className="font-medium text-foreground">{category.name}</p>
+                                <p className="text-sm text-muted-foreground">ID: {category.id.slice(0, 8)}</p>
+                              </div>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline">{category.slug}</Badge>
+                          </TableCell>
+                          <TableCell className="text-muted-foreground">
+                            {category.description}
+                          </TableCell>
+                          <TableCell className="text-xl">{category.icon}</TableCell>
+                          <TableCell>
+                            <div className="flex items-center space-x-2">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => {
+                                  setEditingCategory(category);
+                                  setShowCategoryDialog(true);
+                                }}
+                                data-testid={`button-edit-category-${category.id}`}
+                              >
+                                <Edit className="w-4 h-4" />
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => deleteCategoryMutation.mutate(category.id)}
+                                data-testid={`button-delete-category-${category.id}`}
+                                disabled={deleteCategoryMutation.isPending}
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </Card>
+              </div>
+            )}
+
             {/* Orders Tab */}
             {activeTab === 'orders' && (
               <div>
@@ -494,6 +633,24 @@ export default function Admin({ onClose }: AdminProps) {
             onClose={() => {
               setShowProductDialog(false);
               setEditingProduct(null);
+            }}
+          />
+        </DialogContent>
+      </Dialog>
+
+      {/* Category Dialog */}
+      <Dialog open={showCategoryDialog} onOpenChange={setShowCategoryDialog}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>
+              {editingCategory ? 'Edit Category' : 'Add New Category'}
+            </DialogTitle>
+          </DialogHeader>
+          <CategoryForm
+            category={editingCategory}
+            onClose={() => {
+              setShowCategoryDialog(false);
+              setEditingCategory(null);
             }}
           />
         </DialogContent>
@@ -832,6 +989,148 @@ function ProductForm({ product, onClose }: ProductFormProps) {
           {createMutation.isPending || updateMutation.isPending 
             ? "Saving..." 
             : product ? "Update Product" : "Create Product"
+          }
+        </Button>
+      </div>
+    </form>
+  );
+}
+
+interface CategoryFormProps {
+  category?: any;
+  onClose: () => void;
+}
+
+function CategoryForm({ category, onClose }: CategoryFormProps) {
+  const [formData, setFormData] = useState({
+    name: category?.name || "",
+    slug: category?.slug || "",
+    description: category?.description || "",
+    icon: category?.icon || "",
+  });
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  const createMutation = useMutation({
+    mutationFn: createCategory,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/categories'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/stats'] });
+      toast({
+        title: "Category Created",
+        description: "Category has been created successfully.",
+      });
+      onClose();
+    },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: ({ id, data }: { id: string; data: any }) => updateCategory(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/categories'] });
+      toast({
+        title: "Category Updated",
+        description: "Category has been updated successfully.",
+      });
+      onClose();
+    },
+  });
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (category) {
+      updateMutation.mutate({ id: category.id, data: formData });
+    } else {
+      createMutation.mutate(formData);
+    }
+  };
+
+  const handleInputChange = (field: string, value: string) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+    
+    // Auto-generate slug from name if it's empty and we're typing in name
+    if (field === 'name' && !formData.slug) {
+      const slug = value.toLowerCase()
+        .replace(/[^a-z0-9\s-]/g, '')
+        .replace(/\s+/g, '-')
+        .replace(/-+/g, '-')
+        .trim();
+      setFormData(prev => ({ ...prev, slug }));
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div>
+        <Label htmlFor="name">Category Name *</Label>
+        <Input
+          id="name"
+          value={formData.name}
+          onChange={(e) => handleInputChange('name', e.target.value)}
+          required
+          data-testid="input-category-name"
+          placeholder="e.g., Felt Crafts"
+        />
+      </div>
+
+      <div>
+        <Label htmlFor="slug">Slug *</Label>
+        <Input
+          id="slug"
+          value={formData.slug}
+          onChange={(e) => handleInputChange('slug', e.target.value)}
+          required
+          data-testid="input-category-slug"
+          placeholder="e.g., felt-crafts"
+          pattern="^[a-z0-9-]+$"
+          title="Only lowercase letters, numbers, and hyphens allowed"
+        />
+        <p className="text-xs text-muted-foreground mt-1">
+          URL-friendly version of the name (auto-generated from name)
+        </p>
+      </div>
+
+      <div>
+        <Label htmlFor="description">Description</Label>
+        <Textarea
+          id="description"
+          value={formData.description}
+          onChange={(e) => handleInputChange('description', e.target.value)}
+          data-testid="input-category-description"
+          placeholder="Brief description of this category..."
+          rows={3}
+        />
+      </div>
+
+      <div>
+        <Label htmlFor="icon">Icon *</Label>
+        <Input
+          id="icon"
+          value={formData.icon}
+          onChange={(e) => handleInputChange('icon', e.target.value)}
+          required
+          data-testid="input-category-icon"
+          placeholder="🧶"
+          maxLength={2}
+        />
+        <p className="text-xs text-muted-foreground mt-1">
+          Choose an emoji that represents this category
+        </p>
+      </div>
+
+      <div className="flex justify-end space-x-2 pt-4">
+        <Button type="button" variant="outline" onClick={onClose}>
+          Cancel
+        </Button>
+        <Button 
+          type="submit" 
+          disabled={createMutation.isPending || updateMutation.isPending}
+          data-testid="button-save-category"
+        >
+          {createMutation.isPending || updateMutation.isPending 
+            ? "Saving..." 
+            : category ? "Update Category" : "Create Category"
           }
         </Button>
       </div>
