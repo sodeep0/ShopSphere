@@ -200,7 +200,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // CSV Import
-  app.post("/api/admin/products/import-csv", authenticateAdmin, upload.single('csvFile'), async (req, res) => {
+  app.post("/api/admin/products/import-csv", authenticateAdmin, upload.single('csvFile'), async (req: any, res: any) => {
     if (!req.file) {
       return res.status(400).json({ message: 'No CSV file provided' });
     }
@@ -209,7 +209,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const products: any[] = [];
       const errors: string[] = [];
 
-      const stream = Readable.from(req.file.buffer);
+      const stream = Readable.from(req.file!.buffer);
       
       stream
         .pipe(csv())

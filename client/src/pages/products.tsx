@@ -90,8 +90,8 @@ function QuickViewModal({ product, onClose }: QuickViewModalProps) {
 export default function Products({ searchQuery = "" }: ProductsProps) {
   const [location] = useLocation();
   const [filters, setFilters] = useState({
-    category: "",
-    priceRange: "",
+    category: "all",
+    priceRange: "all",
     inStock: false,
     search: searchQuery,
   });
@@ -109,13 +109,15 @@ export default function Products({ searchQuery = "" }: ProductsProps) {
     const category = params.get('category');
     if (category) {
       setFilters(prev => ({ ...prev, category }));
+    } else {
+      setFilters(prev => ({ ...prev, category: "all" }));
     }
   }, [location]);
 
   const { data: products = [], isLoading } = useQuery({
     queryKey: ['/api/products', filters],
     queryFn: () => getProducts({
-      category: filters.category || undefined,
+      category: (filters.category && filters.category !== 'all') ? filters.category : undefined,
       inStock: filters.inStock || undefined,
       search: filters.search || undefined,
     }),
@@ -127,16 +129,16 @@ export default function Products({ searchQuery = "" }: ProductsProps) {
 
   const clearFilters = () => {
     setFilters({
-      category: "",
-      priceRange: "",
+      category: "all",
+      priceRange: "all",
       inStock: false,
       search: searchQuery,
     });
   };
 
   // Filter products by price range locally
-  const filteredProducts = products.filter(product => {
-    if (!filters.priceRange) return true;
+  const filteredProducts = products.filter((product: Product) => {
+    if (!filters.priceRange || filters.priceRange === 'all') return true;
     
     const price = parseFloat(product.price);
     switch (filters.priceRange) {
@@ -182,7 +184,7 @@ export default function Products({ searchQuery = "" }: ProductsProps) {
                       <SelectValue placeholder="All Categories" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">All Categories</SelectItem>
+                      <SelectItem value="all">All Categories</SelectItem>
                       <SelectItem value="felt-crafts">Felt Crafts</SelectItem>
                       <SelectItem value="statues">Statues</SelectItem>
                       <SelectItem value="prayer-wheels">Prayer Wheels</SelectItem>
@@ -199,7 +201,7 @@ export default function Products({ searchQuery = "" }: ProductsProps) {
                       <SelectValue placeholder="All Prices" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">All Prices</SelectItem>
+                      <SelectItem value="all">All Prices</SelectItem>
                       <SelectItem value="0-1000">NPR 0 - 1,000</SelectItem>
                       <SelectItem value="1000-5000">NPR 1,000 - 5,000</SelectItem>
                       <SelectItem value="5000-10000">NPR 5,000 - 10,000</SelectItem>
@@ -296,7 +298,7 @@ export default function Products({ searchQuery = "" }: ProductsProps) {
                   ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3' 
                   : 'grid-cols-1'
               }`}>
-                {filteredProducts.map((product) => (
+                {filteredProducts.map((product: Product) => (
                   <ProductCard
                     key={product.id}
                     product={product}
