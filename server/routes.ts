@@ -9,6 +9,7 @@ import { Readable } from "stream";
 import { 
   loginSchema, 
   insertProductSchema, 
+  insertCategorySchema,
   orderWithItemsSchema,
   categoryFilterSchema 
 } from "@shared/schema";
@@ -87,6 +88,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(product);
     } catch (error) {
       res.status(500).json({ message: 'Failed to fetch product' });
+    }
+  });
+
+  // Category Routes
+  
+  // Get all categories
+  app.get("/api/categories", async (req, res) => {
+    try {
+      const categories = await storage.getCategories();
+      res.json(categories);
+    } catch (error) {
+      res.status(500).json({ message: 'Failed to fetch categories' });
+    }
+  });
+
+  // Get single category
+  app.get("/api/categories/:id", async (req, res) => {
+    try {
+      const category = await storage.getCategory(req.params.id);
+      if (!category) {
+        return res.status(404).json({ message: 'Category not found' });
+      }
+      res.json(category);
+    } catch (error) {
+      res.status(500).json({ message: 'Failed to fetch category' });
     }
   });
 
@@ -315,6 +341,56 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(stats);
     } catch (error) {
       res.status(500).json({ message: 'Failed to fetch stats' });
+    }
+  });
+
+  // Admin Category Routes
+  
+  // Create category
+  app.post("/api/admin/categories", authenticateAdmin, async (req, res) => {
+    try {
+      const validatedCategory = insertCategorySchema.parse(req.body);
+      const category = await storage.createCategory(validatedCategory);
+      res.status(201).json(category);
+    } catch (error: any) {
+      if (error.name === 'ZodError') {
+        res.status(400).json({ message: 'Invalid category data', errors: error.errors });
+      } else {
+        res.status(500).json({ message: error.message || 'Failed to create category' });
+      }
+    }
+  });
+
+  // Update category
+  app.put("/api/admin/categories/:id", authenticateAdmin, async (req, res) => {
+    try {
+      const validatedCategory = insertCategorySchema.partial().parse(req.body);
+      const category = await storage.updateCategory(req.params.id, validatedCategory);
+      if (!category) {
+        return res.status(404).json({ message: 'Category not found' });
+      }
+      res.json(category);
+    } catch (error: any) {
+      if (error.name === 'ZodError') {
+        res.status(400).json({ message: 'Invalid category data', errors: error.errors });
+      } else {
+        res.status(500).json({ message: error.message || 'Failed to update category' });
+      }
+    }
+  });
+
+  // Delete category
+  app.delete("/api/admin/categories/:id", authenticateAdmin, async (req, res) => {
+    try {
+      const success = await storage.deleteCategory(req.params.id);
+      if (!success) {
+        return res.status(400).json({ 
+          message: 'Cannot delete category that has products. Move products to another category first.' 
+        });
+      }
+      res.json({ message: 'Category deleted successfully' });
+    } catch (error) {
+      res.status(500).json({ message: 'Failed to delete category' });
     }
   });
 
