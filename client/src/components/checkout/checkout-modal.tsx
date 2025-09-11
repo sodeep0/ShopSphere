@@ -4,7 +4,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useCart } from "@/hooks/use-cart";
 import { useToast } from "@/hooks/use-toast";
 import { createOrder } from "@/lib/api";
@@ -22,12 +21,9 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
     customerName: "",
     customerPhone: "",
     customerEmail: "",
-    province: "",
     district: "",
-    municipality: "",
-    ward: "",
-    detailedAddress: "",
-    postalCode: "",
+    road: "",
+    additionalLandmark: "",
     specialInstructions: "",
   });
 
@@ -67,7 +63,7 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
     e.preventDefault();
     
     // Validate required fields
-    const required = ['customerName', 'customerPhone', 'province', 'district', 'municipality', 'ward', 'detailedAddress'];
+    const required = ['customerName', 'customerPhone', 'district', 'road'];
     for (const field of required) {
       if (!formData[field as keyof typeof formData]) {
         toast({
@@ -81,7 +77,6 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
 
     const orderData = {
       ...formData,
-      ward: parseInt(formData.ward),
       items: items.map(item => ({
         productId: item.productId,
         quantity: item.quantity,
@@ -91,15 +86,6 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
     orderMutation.mutate(orderData);
   };
 
-  const provinces = [
-    { value: "province-1", label: "Province 1" },
-    { value: "madesh", label: "Madesh Province" },
-    { value: "bagmati", label: "Bagmati Province" },
-    { value: "gandaki", label: "Gandaki Province" },
-    { value: "lumbini", label: "Lumbini Province" },
-    { value: "karnali", label: "Karnali Province" },
-    { value: "sudurpashchim", label: "Sudurpashchim Province" },
-  ];
 
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" data-testid="checkout-modal">
@@ -190,92 +176,43 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
           <div className="space-y-4">
             <h3 className="font-semibold text-foreground">Delivery Address (Nepal Only)</h3>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="province">Province *</Label>
-                <Select
-                  value={formData.province}
-                  onValueChange={(value) => handleInputChange('province', value)}
-                  required
-                >
-                  <SelectTrigger data-testid="select-province">
-                    <SelectValue placeholder="Select Province" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {provinces.map((province) => (
-                      <SelectItem key={province.value} value={province.value}>
-                        {province.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              
-              <div>
-                <Label htmlFor="district">District *</Label>
-                <Input
-                  id="district"
-                  placeholder="e.g., Kathmandu"
-                  value={formData.district}
-                  onChange={(e) => handleInputChange('district', e.target.value)}
-                  required
-                  data-testid="input-district"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="municipality">Municipality/VDC *</Label>
-                <Input
-                  id="municipality"
-                  placeholder="e.g., Lalitpur Sub-Metropolitan"
-                  value={formData.municipality}
-                  onChange={(e) => handleInputChange('municipality', e.target.value)}
-                  required
-                  data-testid="input-municipality"
-                />
-              </div>
-              
-              <div>
-                <Label htmlFor="ward">Ward No. *</Label>
-                <Input
-                  id="ward"
-                  type="number"
-                  placeholder="e.g., 15"
-                  min="1"
-                  max="35"
-                  value={formData.ward}
-                  onChange={(e) => handleInputChange('ward', e.target.value)}
-                  required
-                  data-testid="input-ward"
-                />
-              </div>
-            </div>
-
             <div>
-              <Label htmlFor="detailedAddress">Detailed Address *</Label>
-              <Textarea
-                id="detailedAddress"
-                placeholder="House/Building name, Street, Landmark..."
-                rows={3}
-                value={formData.detailedAddress}
-                onChange={(e) => handleInputChange('detailedAddress', e.target.value)}
-                required
-                data-testid="textarea-detailed-address"
-              />
-            </div>
-
-            <div>
-              <Label htmlFor="postalCode">Postal Code (Optional)</Label>
+              <Label htmlFor="district">District *</Label>
               <Input
-                id="postalCode"
-                placeholder="e.g., 44600"
-                value={formData.postalCode}
-                onChange={(e) => handleInputChange('postalCode', e.target.value)}
-                data-testid="input-postal-code"
+                id="district"
+                placeholder="e.g., Kathmandu"
+                value={formData.district}
+                onChange={(e) => handleInputChange('district', e.target.value)}
+                required
+                data-testid="input-district"
               />
             </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="road">Road/Street *</Label>
+                <Input
+                  id="road"
+                  placeholder="e.g., New Baneshwor Road, Thamel Street"
+                  value={formData.road}
+                  onChange={(e) => handleInputChange('road', e.target.value)}
+                  required
+                  data-testid="input-road"
+                />
+              </div>
+              
+              <div>
+                <Label htmlFor="additionalLandmark">Additional Landmark (Optional)</Label>
+                <Input
+                  id="additionalLandmark"
+                  placeholder="e.g., Near Durbar High School, Behind City Mall"
+                  value={formData.additionalLandmark}
+                  onChange={(e) => handleInputChange('additionalLandmark', e.target.value)}
+                  data-testid="input-additional-landmark"
+                />
+              </div>
+            </div>
+
           </div>
 
           {/* COD Information */}
