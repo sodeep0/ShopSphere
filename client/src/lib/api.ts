@@ -84,6 +84,27 @@ export async function deleteProduct(productId: string) {
   return response.json();
 }
 
+// Categories API
+export async function getCategories() {
+  const response = await apiRequest('GET', '/api/categories');
+  return response.json();
+}
+
+export async function createCategory(categoryData: any) {
+  const response = await apiRequest('POST', '/api/admin/categories', categoryData);
+  return response.json();
+}
+
+export async function updateCategory(categoryId: string, categoryData: any) {
+  const response = await apiRequest('PUT', `/api/admin/categories/${categoryId}`, categoryData);
+  return response.json();
+}
+
+export async function deleteCategory(categoryId: string) {
+  const response = await apiRequest('DELETE', `/api/admin/categories/${categoryId}`);
+  return response.json();
+}
+
 export async function importCSV(file: File) {
   const formData = new FormData();
   formData.append('csvFile', file);
