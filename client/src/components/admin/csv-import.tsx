@@ -5,8 +5,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useToast } from "@/hooks/use-toast";
-import { importCSV } from "@/lib/api";
-import { useMutation } from "@tanstack/react-query";
+import { importCSV, getCategories } from "@/lib/api";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import type { Category } from "@shared/schema";
 
 export function CSVImport() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -14,6 +15,11 @@ export function CSVImport() {
   const [validationResults, setValidationResults] = useState<any>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
+
+  const { data: categories = [] } = useQuery({
+    queryKey: ['/api/categories'],
+    queryFn: () => getCategories(),
+  });
 
   const importMutation = useMutation({
     mutationFn: importCSV,
@@ -77,10 +83,13 @@ export function CSVImport() {
   };
 
   const downloadTemplate = () => {
-    const template = `name,description,price,stock,category,image_url,artisan
-"Felt Ball Coasters Set","Beautiful handmade coasters",850,20,"felt-crafts","https://example.com/image1.jpg","Kamala Devi"
-"Prayer Wheel","Traditional Buddhist prayer wheel",2500,10,"prayer-wheels","https://example.com/image2.jpg","Tenzin Norbu"
-"Buddha Statue","Handcrafted meditation statue",4500,5,"statues","https://example.com/image3.jpg","Rajesh Shakya"`;
+    const categorySlugs = categories.map((cat: Category) => cat.slug);
+    const firstCategorySlug = categorySlugs[0] || 'example-category';
+    
+    const template = `name,description,price,stock,category,image_url
+"Sample Product 1","Beautiful handmade item",850,20,"${firstCategorySlug}","https://example.com/image1.jpg"
+"Sample Product 2","Traditional craft item",2500,10,"${firstCategorySlug}","https://example.com/image2.jpg"
+"Sample Product 3","Handcrafted decoration",4500,5,"${firstCategorySlug}","https://example.com/image3.jpg"`;
 
     const blob = new Blob([template], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
@@ -110,11 +119,12 @@ export function CSVImport() {
             <h3 className="font-semibold text-foreground mb-3">CSV Format Requirements</h3>
             <div className="text-sm text-muted-foreground space-y-2">
               <p><strong>Required columns:</strong> name, description, price, stock, category, image_url</p>
-              <p><strong>Categories:</strong> felt-crafts, statues, prayer-wheels, handlooms</p>
+              <p><strong>Categories:</strong> {categories.length > 0 ? categories.map((cat: Category) => cat.slug).join(', ') : 'Loading categories...'}</p>
+              <p><strong>Image URLs:</strong> Use full URLs (https://example.com/image.jpg) or upload images individually in the product form</p>
               <p><strong>Example:</strong></p>
               <code className="block bg-background p-3 rounded text-xs mt-2 font-mono">
-                name,description,price,stock,category,image_url,artisan<br />
-                "Felt Ball Coasters","Beautiful handmade coasters",850,20,"felt-crafts","https://example.com/image.jpg","Artisan Name"
+                name,description,price,stock,category,image_url<br />
+                "Sample Product","Beautiful handmade item",850,20,"{categories.length > 0 ? categories[0].slug : 'example-category'}","https://example.com/image.jpg"
               </code>
             </div>
           </div>

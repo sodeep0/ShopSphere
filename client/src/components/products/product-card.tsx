@@ -1,18 +1,26 @@
-import { ShoppingCart, Star, Eye } from "lucide-react";
+import { ShoppingCart, Heart } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { useCart } from "@/hooks/use-cart";
 import { useToast } from "@/hooks/use-toast";
+import { getImageUrl, getImageSrcSet, getImageAlt } from "@/lib/imageUtils";
 import type { Product } from "@shared/schema";
+import { memo } from "react";
+import { useWishlist } from "@/hooks/use-wishlist";
+import { useAuth } from "@/hooks/use-auth";
+import { useState } from "react";
+import { Link } from "wouter";
 
 interface ProductCardProps {
   product: Product;
-  onQuickView: (product: Product) => void;
+  onQuickView?: (product: Product) => void;
 }
 
-export function ProductCard({ product, onQuickView }: ProductCardProps) {
+export const ProductCard = memo(function ProductCard({ product }: ProductCardProps) {
   const { addItem } = useCart();
   const { toast } = useToast();
+  const { isInWishlist, add, remove } = useWishlist();
+  const { user } = useAuth();
+  const [isWishLoading, setIsWishLoading] = useState(false);
 
   const handleAddToCart = () => {
     if (product.stock <= 0) {
@@ -27,7 +35,7 @@ export function ProductCard({ product, onQuickView }: ProductCardProps) {
     addItem({
       productId: product.id,
       name: product.name,
-      price: parseFloat(product.price),
+      price: product.price,
       image: product.image,
       stock: product.stock,
     });
@@ -38,113 +46,115 @@ export function ProductCard({ product, onQuickView }: ProductCardProps) {
     });
   };
 
-  const formatPrice = (price: string) => {
-    return `NPR ${parseFloat(price).toLocaleString()}`;
+  const handleWishlistToggle = async () => {
+    if (!user) {
+      toast({ variant: "destructive", title: "Sign in required", description: "Please sign in to use the wishlist." });
+      return;
+    }
+    try {
+      setIsWishLoading(true);
+      if (isInWishlist(product.id)) {
+        await remove(product.id);
+        toast({ title: "Removed from wishlist", description: `${product.name} was removed.` });
+      } else {
+        await add(product.id);
+        toast({ title: "Added to wishlist", description: `${product.name} was saved.` });
+      }
+    } catch (err: any) {
+      toast({ variant: "destructive", title: "Wishlist error", description: err?.message || "Please try again." });
+    } finally {
+      setIsWishLoading(false);
+    }
   };
 
-  const getCategoryLabel = (category: string) => {
-    const labels: Record<string, string> = {
-      'felt-crafts': 'Felt Crafts',
-      'prayer-wheels': 'Prayer Wheels',
-      'statues': 'Statues',
-      'handlooms': 'Handlooms',
-    };
-    return labels[category] || category;
+  const formatPrice = (price: number) => {
+    return `NPR ${price.toLocaleString()}`;
+  };
+
+  const handleCardClick = (e: React.MouseEvent) => {
+    // Don't navigate if clicking on buttons
+    const target = e.target as HTMLElement;
+    if (target.closest('button')) {
+      return;
+    }
+    window.location.href = `/products/${product.id}`;
   };
 
   return (
-    <div className="group bg-card border border-border rounded-xl overflow-hidden hover:shadow-lg transition-all duration-300 hover:-translate-y-1" data-testid={`card-product-${product.id}`}>
-      <div className="relative aspect-square overflow-hidden">
-        <img
-          src={product.image}
-          alt={product.name}
-          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-          data-testid={`img-product-${product.id}`}
-        />
-        
-        {/* Made in Nepal Badge */}
-        <div className="absolute top-3 left-3 bg-accent/90 text-accent-foreground px-2 py-1 rounded-md text-xs font-medium">
-          Made in Nepal
-        </div>
-
-        {/* Stock Status */}
-        <div className={`absolute top-3 right-3 px-2 py-1 rounded-md text-xs font-medium ${
-          product.stock > 0 
-            ? 'bg-primary/90 text-primary-foreground' 
-            : 'bg-destructive/90 text-destructive-foreground'
-        }`} data-testid={`text-stock-${product.id}`}>
-          {product.stock > 0 ? `${product.stock} in stock` : 'Out of stock'}
-        </div>
-
-        {/* Quick Actions */}
-        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => onQuickView(product)}
-            data-testid={`button-quick-view-${product.id}`}
-          >
-            <Eye className="w-4 h-4 mr-2" />
-            Quick View
-          </Button>
+    <div
+      className="group flex h-full flex-col overflow-hidden rounded-lg border bg-card text-card-foreground shadow-sm transition-shadow duration-300 hover:shadow-md cursor-pointer"
+      data-testid={`card-product-${product.id}`}
+      onClick={handleCardClick}
+    >
+      {/* --- Image Section --- */}
+      <div className="relative overflow-hidden">
+        <div className="aspect-square">
+          <img
+            src={getImageUrl(product.image, 'medium')}
+            srcSet={getImageSrcSet(product.image)}
+            alt={getImageAlt(product.name)}
+            className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+            data-testid={`img-product-${product.id}`}
+            loading="lazy"
+          />
         </div>
       </div>
 
-      <div className="p-4 space-y-3">
+      {/* --- Content Section --- */}
+      <div className="flex flex-1 flex-col p-4">
         <div>
-          <h3 className="font-semibold text-foreground group-hover:text-primary transition-colors" data-testid={`text-name-${product.id}`}>
+          <h3 className="mt-1 text-lg font-medium text-foreground tracking-tight leading-tight" data-testid={`text-name-${product.id}`}>
             {product.name}
           </h3>
-          <p className="text-sm text-muted-foreground" data-testid={`text-category-${product.id}`}>
-            {getCategoryLabel(product.category)}
-          </p>
         </div>
 
-        <p className="text-sm text-muted-foreground line-clamp-2" data-testid={`text-description-${product.id}`}>
-          {product.description}
-        </p>
+        {/* Spacer to push content to the bottom */}
+        <div className="flex-grow" />
 
-        <div className="flex items-center justify-between">
-          <div className="space-y-1">
-            <div className="text-lg font-bold text-foreground" data-testid={`text-price-${product.id}`}>
+        <div className="mt-4 space-y-3">
+          {/* --- Price & Action Buttons --- */}
+          <div>
+            <div className="mb-2 text-2xl font-semibold text-foreground tracking-tight" data-testid={`text-price-${product.id}`}>
               {formatPrice(product.price)}
             </div>
-            <div className="flex items-center space-x-1">
-              <div className="flex text-yellow-400">
-                {[...Array(5)].map((_, i) => (
-                  <Star key={i} className="w-3 h-3 fill-current" />
-                ))}
-              </div>
-              <span className="text-xs text-muted-foreground">(4.8)</span>
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                className="flex-grow"
+                disabled={product.stock <= 0}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleAddToCart();
+                }}
+                data-testid={`button-add-to-cart-${product.id}`}
+              >
+                {product.stock > 0 ? (
+                  <>
+                    <ShoppingCart className="mr-2 h-4 w-4" />
+                    Add to Cart
+                  </>
+                ) : (
+                  'Sold Out'
+                )}
+              </Button>
+              <Button
+                size="icon"
+                variant="outline"
+                className="shrink-0"
+                aria-label="Toggle wishlist"
+                disabled={isWishLoading}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleWishlistToggle();
+                }}
+                data-testid={`button-wishlist-${product.id}`}
+              >
+                <Heart className={`h-4 w-4 transition-colors ${isInWishlist(product.id) ? 'fill-red-500 text-red-500' : 'text-muted-foreground'}`} />
+              </Button>
             </div>
           </div>
-
-          <Button
-            size="sm"
-            disabled={product.stock <= 0}
-            onClick={handleAddToCart}
-            className={`${product.stock <= 0 ? 'cursor-not-allowed' : ''}`}
-            data-testid={`button-add-to-cart-${product.id}`}
-          >
-            {product.stock > 0 ? (
-              <>
-                <ShoppingCart className="w-4 h-4 mr-1" />
-                Add
-              </>
-            ) : (
-              'Sold Out'
-            )}
-          </Button>
         </div>
-
-        {product.artisan && (
-          <div className="pt-2 border-t border-border">
-            <p className="text-xs text-muted-foreground">
-              Crafted by <span className="font-medium">{product.artisan}</span>
-            </p>
-          </div>
-        )}
       </div>
     </div>
   );
-}
+});

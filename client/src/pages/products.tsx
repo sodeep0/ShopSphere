@@ -1,173 +1,165 @@
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
-import { Filter, Grid, List } from "lucide-react";
+import { Filter } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
-import { useQuery } from "@tanstack/react-query";
-import { getProducts } from "@/lib/api";
+import { useQuery, useInfiniteQuery } from "@tanstack/react-query";
+import { getProductsPaginated, getCategories } from "@/lib/api";
 import { ProductCard } from "@/components/products/product-card";
-import type { Product } from "@shared/schema";
+import type { Product, Category } from "@shared/schema";
+
 
 interface ProductsProps {
   searchQuery?: string;
 }
 
-interface QuickViewModalProps {
-  product: Product | null;
-  onClose: () => void;
-}
-
-function QuickViewModal({ product, onClose }: QuickViewModalProps) {
-  if (!product) return null;
-
-  const formatPrice = (price: string) => {
-    return `NPR ${parseFloat(price).toLocaleString()}`;
-  };
-
-  return (
-    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-card rounded-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-        <div className="p-6">
-          <div className="grid md:grid-cols-2 gap-6">
-            <div className="space-y-4">
-              <img 
-                src={product.image} 
-                alt={product.name} 
-                className="w-full rounded-lg object-cover"
-              />
-            </div>
-            <div className="space-y-4">
-              <div>
-                <h2 className="text-3xl font-bold text-foreground">{product.name}</h2>
-                <p className="text-sm text-muted-foreground">{product.category.replace('-', ' ').replace(/\b\w/g, l => l.toUpperCase())}</p>
-              </div>
-              
-              <p className="text-muted-foreground">{product.description}</p>
-              
-              <div className="text-2xl font-bold text-foreground">
-                {formatPrice(product.price)}
-              </div>
-              
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">Stock:</span>
-                  <span className={`text-sm font-medium ${product.stock > 0 ? 'text-primary' : 'text-destructive'}`}>
-                    {product.stock > 0 ? `${product.stock} available` : 'Out of stock'}
-                  </span>
-                </div>
-                
-                {product.artisan && (
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-muted-foreground">Artisan:</span>
-                    <span className="text-sm font-medium text-foreground">{product.artisan}</span>
-                  </div>
-                )}
-              </div>
-              
-              <div className="pt-4 space-y-3">
-                <Button 
-                  className="w-full" 
-                  disabled={product.stock <= 0}
-                  onClick={onClose}
-                >
-                  {product.stock > 0 ? 'Add to Cart' : 'Out of Stock'}
-                </Button>
-                <Button variant="outline" className="w-full" onClick={onClose}>
-                  Close
-                </Button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 export default function Products({ searchQuery = "" }: ProductsProps) {
   const [location] = useLocation();
+  const [searchParams, setSearchParams] = useState("");
+
+
+  // Parse URL params and create filters state
+  const params = new URLSearchParams(searchParams);
+  const urlCategory = params.get('category');
+  const urlSearch = params.get('search');
+  
   const [filters, setFilters] = useState({
-    category: "all",
-    priceRange: "all",
+    category: urlCategory || "all",
+    minPrice: "",
+    maxPrice: "",
     inStock: false,
-    search: searchQuery,
+    search: urlSearch || searchQuery,
+    sortBy: "best-match",
   });
-  const [quickViewProduct, setQuickViewProduct] = useState<Product | null>(null);
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
 
-  // Update search when prop changes
-  useEffect(() => {
-    setFilters(prev => ({ ...prev, search: searchQuery }));
-  }, [searchQuery]);
 
-  // Parse URL params on mount
+  // Update search params state when URL changes
   useEffect(() => {
-    const params = new URLSearchParams(location.split('?')[1] || '');
-    const category = params.get('category');
-    if (category) {
-      setFilters(prev => ({ ...prev, category }));
-    } else {
-      setFilters(prev => ({ ...prev, category: "all" }));
-    }
+    setSearchParams(window.location.search);
   }, [location]);
 
-  const { data: products = [], isLoading } = useQuery({
-    queryKey: ['/api/products', filters],
-    queryFn: () => getProducts({
+
+  // Update filters when search params change
+  useEffect(() => {
+    const params = new URLSearchParams(searchParams);
+    const category = params.get('category');
+    const search = params.get('search');
+    
+    setFilters(prev => ({
+      ...prev,
+      category: category || "all",
+      search: search || searchQuery
+    }));
+  }, [searchParams, searchQuery]);
+
+
+  const pageSize = 12;
+
+
+  const fetchProductsPage = ({ pageParam = 1 }: { pageParam?: number }) =>
+    getProductsPaginated({
       category: (filters.category && filters.category !== 'all') ? filters.category : undefined,
       inStock: filters.inStock || undefined,
       search: filters.search || undefined,
-    }),
+      sortBy: filters.sortBy !== 'best-match' ? filters.sortBy : undefined,
+      page: pageParam,
+      limit: pageSize,
+    });
+
+
+  const productsQuery = useInfiniteQuery({
+    queryKey: ['/api/products', filters],
+    queryFn: ({ pageParam = 1 }) => fetchProductsPage({ pageParam }),
+    getNextPageParam: (lastPage: any, pages) => {
+      const total = lastPage?.total ?? (Array.isArray(lastPage) ? lastPage.length : 0);
+      const currentPage = pages.length;
+      const maxPage = Math.max(1, Math.ceil(total / pageSize));
+      return currentPage < maxPage ? currentPage + 1 : undefined;
+    },
+    initialPageParam: 1,
+    enabled: true,
   });
 
+
+  const isLoading = productsQuery.isLoading;
+  const productsPages = productsQuery.data?.pages || [];
+  const flattenedProducts: Product[] = productsPages.flatMap((p: any) => p.items || p || []);
+
+
+  const { data: categories = [], isLoading: categoriesLoading } = useQuery({
+    queryKey: ['/api/categories'],
+    queryFn: () => getCategories(),
+  });
+
+
   const handleFilterChange = (key: string, value: any) => {
-    setFilters(prev => ({ ...prev, [key]: value }));
+    setFilters(prev => {
+      const newFilters = { ...prev, [key]: value };
+      
+      if (key === 'minPrice' || key === 'maxPrice') {
+        const minPrice = key === 'minPrice' ? parseFloat(value) || 0 : parseFloat(prev.minPrice) || 0;
+        const maxPrice = key === 'maxPrice' ? parseFloat(value) || Infinity : parseFloat(prev.maxPrice) || Infinity;
+        
+        if (minPrice > maxPrice && maxPrice !== Infinity) {
+          newFilters.maxPrice = value;
+        }
+      }
+      
+      return newFilters;
+    });
   };
+
 
   const clearFilters = () => {
     setFilters({
       category: "all",
-      priceRange: "all",
+      minPrice: "",
+      maxPrice: "",
       inStock: false,
       search: searchQuery,
+      sortBy: "best-match",
     });
   };
 
-  // Filter products by price range locally
-  const filteredProducts = products.filter((product: Product) => {
-    if (!filters.priceRange || filters.priceRange === 'all') return true;
+
+  const filteredProducts = flattenedProducts.filter((product: Product) => {
+    if (product.price == null) return false;
     
-    const price = parseFloat(product.price);
-    switch (filters.priceRange) {
-      case "0-1000":
-        return price <= 1000;
-      case "1000-5000":
-        return price > 1000 && price <= 5000;
-      case "5000-10000":
-        return price > 5000 && price <= 10000;
-      case "10000+":
-        return price > 10000;
-      default:
-        return true;
-    }
+    const price = typeof product.price === 'number' ? product.price : parseFloat(String(product.price));
+    const minPrice = filters.minPrice ? parseFloat(filters.minPrice) : 0;
+    const maxPrice = filters.maxPrice ? parseFloat(filters.maxPrice) : Infinity;
+    
+    return price >= minPrice && price <= maxPrice;
   });
+
+
+  useEffect(() => {
+    productsQuery.refetch();
+  }, [filters.category, filters.inStock, filters.search, filters.sortBy]);
+
+
+  const hasMore = Boolean(productsQuery.hasNextPage);
+
 
   return (
     <div className="min-h-screen bg-background nepal-pattern">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Page Header */}
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-foreground mb-2">Our Products</h1>
-          <p className="text-muted-foreground">Handcrafted with tradition and love</p>
+          <h1 className="text-3xl font-bold text-foreground mb-2">
+            {filters.search ? `Search Results for "${filters.search}"` : "Our Products"}
+          </h1>
+          <p className="text-muted-foreground">
+            {filters.search ? `Found ${filteredProducts.length} products matching your search` : "Handcrafted with tradition and love"}
+          </p>
         </div>
 
+
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
-          {/* Filters Sidebar */}
           <div className="lg:col-span-1">
-            <div className="bg-card border border-border rounded-xl p-6 sticky top-24">
+            <div className="bg-card border border-border rounded-xl p-6 sticky top-20">
               <div className="flex items-center justify-between mb-6">
                 <h2 className="text-lg font-semibold text-foreground">Filters</h2>
                 <Button variant="ghost" size="sm" onClick={clearFilters} data-testid="button-clear-filters">
@@ -175,8 +167,8 @@ export default function Products({ searchQuery = "" }: ProductsProps) {
                 </Button>
               </div>
 
+
               <div className="space-y-6">
-                {/* Category Filter */}
                 <div>
                   <Label className="text-sm font-medium text-foreground mb-3 block">Category</Label>
                   <Select value={filters.category} onValueChange={(value) => handleFilterChange('category', value)}>
@@ -185,32 +177,53 @@ export default function Products({ searchQuery = "" }: ProductsProps) {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">All Categories</SelectItem>
-                      <SelectItem value="felt-crafts">Felt Crafts</SelectItem>
-                      <SelectItem value="statues">Statues</SelectItem>
-                      <SelectItem value="prayer-wheels">Prayer Wheels</SelectItem>
-                      <SelectItem value="handlooms">Handlooms</SelectItem>
+                      {categoriesLoading ? (
+                        <SelectItem value="loading" disabled>Loading categories...</SelectItem>
+                      ) : (
+                        categories.map((category: Category) => (
+                          <SelectItem key={category.id} value={category.slug}>
+                            {category.name}
+                          </SelectItem>
+                        ))
+                      )}
                     </SelectContent>
                   </Select>
                 </div>
 
-                {/* Price Range Filter */}
+
                 <div>
-                  <Label className="text-sm font-medium text-foreground mb-3 block">Price Range</Label>
-                  <Select value={filters.priceRange} onValueChange={(value) => handleFilterChange('priceRange', value)}>
-                    <SelectTrigger data-testid="select-price-filter">
-                      <SelectValue placeholder="All Prices" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Prices</SelectItem>
-                      <SelectItem value="0-1000">NPR 0 - 1,000</SelectItem>
-                      <SelectItem value="1000-5000">NPR 1,000 - 5,000</SelectItem>
-                      <SelectItem value="5000-10000">NPR 5,000 - 10,000</SelectItem>
-                      <SelectItem value="10000+">NPR 10,000+</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <Label className="text-sm font-medium text-foreground mb-3 block">Price Range (NPR)</Label>
+                  <div className="space-y-3">
+                    <div>
+                      <Label htmlFor="min-price" className="text-xs text-muted-foreground">Minimum Price</Label>
+                      <Input
+                        id="min-price"
+                        type="number"
+                        placeholder="0"
+                        value={filters.minPrice}
+                        onChange={(e) => handleFilterChange('minPrice', e.target.value)}
+                        data-testid="input-min-price"
+                        min="0"
+                        step="1"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="max-price" className="text-xs text-muted-foreground">Maximum Price</Label>
+                      <Input
+                        id="max-price"
+                        type="number"
+                        placeholder="No limit"
+                        value={filters.maxPrice}
+                        onChange={(e) => handleFilterChange('maxPrice', e.target.value)}
+                        data-testid="input-max-price"
+                        min="0"
+                        step="1"
+                      />
+                    </div>
+                  </div>
                 </div>
 
-                {/* Stock Filter */}
+
                 <div className="flex items-center space-x-2">
                   <Checkbox
                     id="in-stock"
@@ -223,7 +236,7 @@ export default function Products({ searchQuery = "" }: ProductsProps) {
                   </Label>
                 </div>
 
-                {/* Search */}
+
                 <div>
                   <Label className="text-sm font-medium text-foreground mb-3 block">Search</Label>
                   <Input
@@ -233,39 +246,36 @@ export default function Products({ searchQuery = "" }: ProductsProps) {
                     data-testid="input-product-search"
                   />
                 </div>
+
+
+                <div>
+                  <Label className="text-sm font-medium text-foreground mb-3 block">Sort By</Label>
+                  <Select value={filters.sortBy} onValueChange={(value) => handleFilterChange('sortBy', value)}>
+                    <SelectTrigger data-testid="select-sort-by">
+                      <SelectValue placeholder="Sort by" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="best-match">Best Match</SelectItem>
+                      <SelectItem value="price-low-high">Price: Low to High</SelectItem>
+                      <SelectItem value="price-high-low">Price: High to Low</SelectItem>
+                      <SelectItem value="newest">Newest First</SelectItem>
+                      <SelectItem value="oldest">Oldest First</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
             </div>
           </div>
 
-          {/* Products Grid */}
+
           <div className="lg:col-span-3">
-            {/* Results Header */}
             <div className="flex items-center justify-between mb-6">
               <p className="text-muted-foreground" data-testid="text-results-count">
-                {filteredProducts.length} products found
+                Showing {flattenedProducts.length} of {productsQuery.data?.pages?.[0]?.total ?? flattenedProducts.length} products
               </p>
-              
-              <div className="flex items-center space-x-2">
-                <Button
-                  variant={viewMode === 'grid' ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => setViewMode('grid')}
-                  data-testid="button-grid-view"
-                >
-                  <Grid className="w-4 h-4" />
-                </Button>
-                <Button
-                  variant={viewMode === 'list' ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => setViewMode('list')}
-                  data-testid="button-list-view"
-                >
-                  <List className="w-4 h-4" />
-                </Button>
-              </div>
             </div>
 
-            {/* Products */}
+
             {isLoading ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                 {[...Array(6)].map((_, i) => (
@@ -293,37 +303,36 @@ export default function Products({ searchQuery = "" }: ProductsProps) {
                 </Button>
               </div>
             ) : (
-              <div className={`grid gap-6 ${
-                viewMode === 'grid' 
-                  ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3' 
-                  : 'grid-cols-1'
-              }`}>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                 {filteredProducts.map((product: Product) => (
                   <ProductCard
                     key={product.id}
                     product={product}
-                    onQuickView={(product) => setQuickViewProduct(product)}
                   />
                 ))}
               </div>
             )}
 
-            {/* Load More */}
-            {filteredProducts.length > 0 && filteredProducts.length >= 12 && (
-              <div className="text-center mt-12">
-                <Button variant="outline" size="lg" data-testid="button-load-more">
+
+            <div className="text-center mt-12">
+              {productsQuery.isFetchingNextPage ? (
+                <div className="text-muted-foreground">Loading more...</div>
+              ) : hasMore ? (
+                <Button
+                  variant="outline"
+                  size="lg"
+                  data-testid="button-load-more"
+                  onClick={() => productsQuery.fetchNextPage()}
+                >
                   Load More Products
                 </Button>
-              </div>
-            )}
+              ) : (
+                <div className="text-sm text-muted-foreground">End of results</div>
+              )}
+            </div>
           </div>
         </div>
       </div>
-
-      <QuickViewModal 
-        product={quickViewProduct}
-        onClose={() => setQuickViewProduct(null)}
-      />
     </div>
   );
 }

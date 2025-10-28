@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, integer, decimal, timestamp, boolean } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, integer, decimal, timestamp, boolean, unique } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -10,7 +10,12 @@ export const users = pgTable("users", {
   name: text("name").notNull(),
   phone: text("phone"),
   role: text("role").notNull().default("customer"), // 'customer' | 'admin'
+  // Address fields for auto-fill
+  district: text("district"),
+  road: text("road"),
+  additionalLandmark: text("additional_landmark"),
   createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
 });
 
 export const categories = pgTable("categories", {
@@ -28,12 +33,10 @@ export const products = pgTable("products", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   name: text("name").notNull(),
   description: text("description").notNull(),
-  price: decimal("price", { precision: 10, scale: 2 }).notNull(),
+  price: decimal("price", { precision: 10, scale: 2 }).notNull().$type<number>(),
   image: text("image").notNull(),
   stock: integer("stock").notNull().default(0),
-  categoryId: varchar("category_id").references(() => categories.id), // Optional during migration
-  category: text("category").notNull(), // Keep for backward compatibility during migration
-  artisan: text("artisan"),
+  categoryId: varchar("category_id").references(() => categories.id).notNull(),
   isActive: boolean("is_active").notNull().default(true),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
@@ -41,6 +44,7 @@ export const products = pgTable("products", {
 
 export const orders = pgTable("orders", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").references(() => users.id), // Optional - for guest orders
   customerName: text("customer_name").notNull(),
   customerPhone: text("customer_phone").notNull(),
   customerEmail: text("customer_email"),
@@ -62,6 +66,16 @@ export const orderItems = pgTable("order_items", {
   quantity: integer("quantity").notNull(),
 });
 
+// Wishlist - mapping of user to products they like
+export const wishlists = pgTable("wishlists", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").references(() => users.id).notNull(),
+  productId: varchar("product_id").references(() => products.id).notNull(),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  userProductUnique: unique().on(table.userId, table.productId),
+}));
+
 // Insert Schemas
 export const insertUserSchema = createInsertSchema(users).pick({
   email: true,
@@ -69,6 +83,9 @@ export const insertUserSchema = createInsertSchema(users).pick({
   name: true,
   phone: true,
   role: true,
+  district: true,
+  road: true,
+  additionalLandmark: true,
 });
 
 export const insertCategorySchema = createInsertSchema(categories).pick({
@@ -84,11 +101,11 @@ export const insertProductSchema = createInsertSchema(products).pick({
   price: true,
   image: true,
   stock: true,
-  category: true,
-  artisan: true,
+  categoryId: true,
 });
 
 export const insertOrderSchema = createInsertSchema(orders).pick({
+  userId: true,
   customerName: true,
   customerPhone: true,
   customerEmail: true,
@@ -107,6 +124,57 @@ export const insertOrderItemSchema = createInsertSchema(orderItems).pick({
   quantity: true,
 });
 
+export const insertWishlistSchema = createInsertSchema(wishlists).pick({
+  userId: true,
+  productId: true,
+});
+
+// Additional schemas for API validation
+export const loginSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(1),
+});
+
+export const registerSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(6),
+  name: z.string().min(1),
+  phone: z.string().min(1),
+  district: z.string().optional(),
+  road: z.string().optional(),
+  additionalLandmark: z.string().optional(),
+});
+
+export const updateProfileSchema = z.object({
+  name: z.string().min(1).optional(),
+  phone: z.string().min(1).optional(),
+  district: z.string().optional(),
+  road: z.string().optional(),
+  additionalLandmark: z.string().optional(),
+});
+
+export const orderWithItemsSchema = z.object({
+  id: z.string().optional(), // For existing orders
+  userId: z.string().optional(), // For logged-in users
+  customerName: z.string().min(1),
+  customerPhone: z.string().min(1),
+  customerEmail: z.string().email().optional(),
+  district: z.string().min(1),
+  road: z.string().min(1),
+  additionalLandmark: z.string().optional(),
+  specialInstructions: z.string().optional(),
+  total: z.number().optional(), // For existing orders
+  status: z.string().optional(), // For existing orders
+  createdAt: z.date().optional(), // For existing orders
+  items: z.array(z.object({
+    id: z.string().optional(), // For existing order items
+    productId: z.string(),
+    productName: z.string().optional(), // For existing order items
+    productPrice: z.number().optional(), // For existing order items
+    quantity: z.number().min(1),
+  })).min(1),
+});
+
 // Types
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -118,28 +186,10 @@ export type Order = typeof orders.$inferSelect;
 export type InsertOrder = z.infer<typeof insertOrderSchema>;
 export type OrderItem = typeof orderItems.$inferSelect;
 export type InsertOrderItem = z.infer<typeof insertOrderItemSchema>;
-
-// Additional schemas for API validation
-export const loginSchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(1),
-});
-
-export const categoryFilterSchema = z.enum(['felt-crafts', 'statues', 'prayer-wheels', 'handlooms']);
-
-export const orderWithItemsSchema = z.object({
-  customerName: z.string().min(1),
-  customerPhone: z.string().min(1),
-  customerEmail: z.string().email().optional(),
-  district: z.string().min(1),
-  road: z.string().min(1),
-  additionalLandmark: z.string().optional(),
-  specialInstructions: z.string().optional(),
-  items: z.array(z.object({
-    productId: z.string(),
-    quantity: z.number().min(1),
-  })).min(1),
-});
+export type Wishlist = typeof wishlists.$inferSelect;
+export type InsertWishlist = z.infer<typeof insertWishlistSchema>;
 
 export type OrderWithItems = z.infer<typeof orderWithItemsSchema>;
 export type LoginRequest = z.infer<typeof loginSchema>;
+export type RegisterRequest = z.infer<typeof registerSchema>;
+export type UpdateProfileRequest = z.infer<typeof updateProfileSchema>;

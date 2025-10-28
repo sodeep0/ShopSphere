@@ -1,18 +1,21 @@
 import { useState } from "react";
 import { Link, useLocation } from "wouter";
-import { Search, ShoppingCart, ShieldQuestion, Menu, Mountain } from "lucide-react";
+import { Search, ShoppingCart, Menu, Mountain, User, LogOut, Heart } from "lucide-react";
+import { useWishlist } from "@/hooks/use-wishlist";
 import { useCart } from "@/hooks/use-cart";
+import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
 interface HeaderProps {
   onSearchChange: (search: string) => void;
-  onAdminClick: () => void;
 }
 
-export function Header({ onSearchChange, onAdminClick }: HeaderProps) {
-  const [location] = useLocation();
+export function Header({ onSearchChange }: HeaderProps) {
+  const [location, setLocation] = useLocation();
   const { getTotalItems, setIsOpen } = useCart();
+  const { user, logout } = useAuth();
+  const { count } = useWishlist();
   const [searchQuery, setSearchQuery] = useState("");
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
@@ -21,8 +24,15 @@ export function Header({ onSearchChange, onAdminClick }: HeaderProps) {
     onSearchChange(value);
   };
 
+  const handleSearchSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (searchQuery.trim()) {
+      setLocation(`/products?search=${encodeURIComponent(searchQuery.trim())}`);
+    }
+  };
+
   return (
-    <header className="bg-card/95 backdrop-blur-sm border-b border-border sticky top-0 z-50">
+    <header className="bg-card border-b border-border fixed top-0 left-0 right-0 z-50 shadow-sm min-h-16">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
           {/* Logo */}
@@ -38,17 +48,25 @@ export function Header({ onSearchChange, onAdminClick }: HeaderProps) {
 
           {/* Search Bar */}
           <div className="hidden md:flex flex-1 max-w-md mx-8">
-            <div className="relative w-full">
+            <form onSubmit={handleSearchSubmit} className="relative w-full flex">
               <Input
                 type="text"
                 placeholder="Search handicrafts..."
                 value={searchQuery}
                 onChange={(e) => handleSearchChange(e.target.value)}
-                className="w-full pl-10 pr-4 py-2"
+                className="w-full pl-10 pr-12 py-2"
                 data-testid="input-search"
               />
               <Search className="absolute left-3 top-3 text-muted-foreground w-4 h-4" />
-            </div>
+              <Button
+                type="submit"
+                size="sm"
+                className="absolute right-1 top-1 h-8 px-3"
+                data-testid="button-search"
+              >
+                Search
+              </Button>
+            </form>
           </div>
 
           {/* Navigation & Actions */}
@@ -70,7 +88,59 @@ export function Header({ onSearchChange, onAdminClick }: HeaderProps) {
               </Link>
             </nav>
             
+            {/* User Authentication */}
+            {user ? (
+              <div className="flex items-center space-x-2">
+                <Link href="/profile">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="hidden md:flex items-center space-x-2"
+                  >
+                    <User className="w-4 h-4" />
+                    <span className="hidden lg:inline">{user.name}</span>
+                  </Button>
+                </Link>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={logout}
+                  className="hidden md:flex"
+                >
+                  <LogOut className="w-4 h-4" />
+                </Button>
+              </div>
+            ) : (
+              <div className="flex items-center space-x-2">
+                <Link href="/login">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="hidden md:flex"
+                  >
+                    <User className="w-4 h-4 mr-2" />
+                    Sign In
+                  </Button>
+                </Link>
+              </div>
+            )}
+            
             {/* Cart */}
+            <Link href="/wishlist">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="relative"
+                data-testid="button-wishlist"
+              >
+                <Heart className="w-5 h-5 text-red-500" />
+                {count > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-accent text-accent-foreground text-xs rounded-full w-5 h-5 flex items-center justify-center">
+                    {count}
+                  </span>
+                )}
+              </Button>
+            </Link>
             <Button
               variant="ghost"
               size="sm"
@@ -86,17 +156,6 @@ export function Header({ onSearchChange, onAdminClick }: HeaderProps) {
               )}
             </Button>
 
-            {/* Admin Login */}
-            <Button
-              variant="default"
-              size="sm"
-              className="hidden sm:flex items-center space-x-2"
-              onClick={onAdminClick}
-              data-testid="button-admin"
-            >
-              <ShieldQuestion className="w-4 h-4" />
-              <span>Admin</span>
-            </Button>
 
             {/* Mobile Menu */}
             <Button
@@ -113,16 +172,25 @@ export function Header({ onSearchChange, onAdminClick }: HeaderProps) {
 
         {/* Mobile Menu */}
         {isMobileMenuOpen && (
-          <div className="md:hidden py-4 border-t border-border">
+          <div className="md:hidden py-4 border-t border-border bg-card">
             <div className="space-y-4">
-              <Input
-                type="text"
-                placeholder="Search handicrafts..."
-                value={searchQuery}
-                onChange={(e) => handleSearchChange(e.target.value)}
-                className="w-full"
-                data-testid="input-search-mobile"
-              />
+              <form onSubmit={handleSearchSubmit} className="flex gap-2">
+                <Input
+                  type="text"
+                  placeholder="Search handicrafts..."
+                  value={searchQuery}
+                  onChange={(e) => handleSearchChange(e.target.value)}
+                  className="flex-1"
+                  data-testid="input-search-mobile"
+                />
+                <Button
+                  type="submit"
+                  size="sm"
+                  data-testid="button-search-mobile"
+                >
+                  Search
+                </Button>
+              </form>
               <nav className="flex flex-col space-y-2">
                 <Link 
                   href="/" 
@@ -140,19 +208,34 @@ export function Header({ onSearchChange, onAdminClick }: HeaderProps) {
                 >
                   Products
                 </Link>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="justify-start"
-                  onClick={() => {
-                    onAdminClick();
-                    setIsMobileMenuOpen(false);
-                  }}
-                  data-testid="button-admin-mobile"
-                >
-                  <ShieldQuestion className="w-4 h-4 mr-2" />
-                  Admin Login
-                </Button>
+                {user ? (
+                  <>
+                    <Link 
+                      href="/profile"
+                      className="text-foreground hover:text-primary transition-colors py-2"
+                      onClick={() => setIsMobileMenuOpen(false)}
+                    >
+                      Profile
+                    </Link>
+                    <button
+                      className="text-foreground hover:text-primary transition-colors py-2 text-left"
+                      onClick={() => {
+                        logout();
+                        setIsMobileMenuOpen(false);
+                      }}
+                    >
+                      Logout
+                    </button>
+                  </>
+                ) : (
+                  <Link 
+                    href="/login"
+                    className="text-foreground hover:text-primary transition-colors py-2"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                  >
+                    Sign In
+                  </Link>
+                )}
               </nav>
             </div>
           </div>

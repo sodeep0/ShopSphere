@@ -1,6 +1,15 @@
 import { Mountain, Facebook, Instagram, Twitter, MapPin, Phone, Mail, Truck } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { getCategories } from "@/lib/api";
+import { Link } from "wouter";
+import type { Category } from "@shared/schema";
 
 export function Footer() {
+  const { data: categories = [], isLoading: categoriesLoading } = useQuery({
+    queryKey: ['/api/categories'],
+    queryFn: () => getCategories(),
+  });
+
   return (
     <footer className="bg-card border-t border-border py-12">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -17,7 +26,7 @@ export function Footer() {
               </div>
             </div>
             <p className="text-sm text-muted-foreground">
-              Connecting Nepal's skilled artisans with the world through beautiful, handcrafted treasures that tell stories of tradition and culture.
+              Connecting Nepal with the world through beautiful, handcrafted treasures that tell stories of tradition and culture.
             </p>
             <div className="flex space-x-4">
               <a href="#" className="text-muted-foreground hover:text-primary transition-colors" data-testid="link-facebook">
@@ -35,12 +44,29 @@ export function Footer() {
           {/* Categories */}
           <div>
             <h4 className="font-semibold text-foreground mb-4">Categories</h4>
-            <ul className="space-y-2 text-sm">
-              <li><a href="/products?category=felt-crafts" className="text-muted-foreground hover:text-primary transition-colors" data-testid="link-felt-crafts">Felt Crafts</a></li>
-              <li><a href="/products?category=prayer-wheels" className="text-muted-foreground hover:text-primary transition-colors" data-testid="link-prayer-wheels">Prayer Wheels</a></li>
-              <li><a href="/products?category=statues" className="text-muted-foreground hover:text-primary transition-colors" data-testid="link-statues">Statues</a></li>
-              <li><a href="/products?category=handlooms" className="text-muted-foreground hover:text-primary transition-colors" data-testid="link-handlooms">Handlooms</a></li>
-            </ul>
+            {categoriesLoading ? (
+              <ul className="space-y-2 text-sm">
+                {[...Array(4)].map((_, i) => (
+                  <li key={i} className="animate-pulse">
+                    <div className="h-4 bg-muted rounded w-20"></div>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <ul className="space-y-2 text-sm">
+                {categories.map((category: Category) => (
+                  <li key={category.id}>
+                    <Link 
+                      href={`/products?category=${category.slug}`}
+                      className="text-muted-foreground hover:text-primary transition-colors"
+                      data-testid={`link-${category.slug}`}
+                    >
+                      {category.name}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
 
           {/* Customer Support */}

@@ -1,13 +1,14 @@
-import { useState } from "react";
-import { X, CheckCircle, Truck } from "lucide-react";
+import { useState, useEffect } from "react";
+import { X, CheckCircle, Truck, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useCart } from "@/hooks/use-cart";
+import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { createOrder } from "@/lib/api";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 interface CheckoutModalProps {
   isOpen: boolean;
@@ -16,7 +17,9 @@ interface CheckoutModalProps {
 
 export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
   const { items, getTotalPrice, clearCart } = useCart();
+  const { user } = useAuth();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [formData, setFormData] = useState({
     customerName: "",
     customerPhone: "",
@@ -27,9 +30,31 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
     specialInstructions: "",
   });
 
+  // Auto-fill form with user data when user is logged in
+  useEffect(() => {
+    if (user && isOpen) {
+      setFormData(prev => ({
+        ...prev,
+        customerName: user.name || "",
+        customerPhone: user.phone || "",
+        customerEmail: user.email || "",
+        district: user.district || "",
+        road: user.road || "",
+        additionalLandmark: user.additionalLandmark || "",
+      }));
+    }
+  }, [user, isOpen]);
+
   const orderMutation = useMutation({
     mutationFn: createOrder,
     onSuccess: () => {
+      // Invalidate ALL product-related queries (exact and partial matches)
+      queryClient.invalidateQueries({ queryKey: ['/api/products'] });
+      queryClient.invalidateQueries({ 
+        queryKey: ['/api/products'],
+        exact: false // This will match ['/api/products', filters] and ['/api/products', productId]
+      });
+      
       toast({
         title: "Order Placed Successfully!",
         description: "You will receive a confirmation call shortly. Payment is due on delivery.",
@@ -77,6 +102,7 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
 
     const orderData = {
       ...formData,
+      userId: user?.id, // Include user ID if logged in
       items: items.map(item => ({
         productId: item.productId,
         quantity: item.quantity,
@@ -130,7 +156,15 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
 
           {/* Customer Information */}
           <div className="space-y-4">
-            <h3 className="font-semibold text-foreground">Customer Information</h3>
+            <div className="flex items-center justify-between">
+              <h3 className="font-semibold text-foreground">Customer Information</h3>
+              {user && (
+                <div className="flex items-center space-x-2 text-sm text-primary">
+                  <User className="w-4 h-4" />
+                  <span>Logged in as {user.name}</span>
+                </div>
+              )}
+            </div>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
@@ -160,7 +194,7 @@ export function CheckoutModal({ isOpen, onClose }: CheckoutModalProps) {
             </div>
 
             <div>
-              <Label htmlFor="customerEmail">Email (Optional)</Label>
+              <Label htmlFor="customerEmail">Email *</Label>
               <Input
                 id="customerEmail"
                 type="email"

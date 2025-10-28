@@ -20,8 +20,8 @@
   --primary: hsl(165.65, 26.44%, 65.88%);
   --sidebar: hsl(180 6.6667% 97.0588%);
   --spacing: 0.25rem;
-  --font-mono: 'IBM Plex Mono', monospace;
-  --font-sans: 'Inter', sans-serif;
+  --font-mono: 'Geist Mono', monospace;
+  --font-sans: 'Geist', sans-serif;
   --secondary: hsl(0, 0%, 8.24%);
   --shadow-lg: 0px 2px 0px 0px hsl(202.8169 89.1213% 53.1373% / 0.00), 0px 4px 6px -1px hsl(202.8169 89.1213% 53.1373% / 0.00);
   --shadow-md: 0px 2px 0px 0px hsl(202.8169 89.1213% 53.1373% / 0.00), 0px 2px 4px -1px hsl(202.8169 89.1213% 53.1373% / 0.00);
@@ -29,7 +29,7 @@
   --shadow-xl: 0px 2px 0px 0px hsl(202.8169 89.1213% 53.1373% / 0.00), 0px 8px 10px -1px hsl(202.8169 89.1213% 53.1373% / 0.00);
   --shadow-xs: 0px 2px 0px 0px hsl(202.8169 89.1213% 53.1373% / 0.00);
   --background: hsl(70.91, 21.57%, 90%);
-  --font-serif: 'Source Serif Pro', serif;
+  --font-serif: 'Source Serif 4', serif;
   --foreground: hsl(0, 0%, 8.24%);
   --shadow-2xl: 0px 2px 0px 0px hsl(202.8169 89.1213% 53.1373% / 0.00);
   --shadow-2xs: 0px 2px 0px 0px hsl(202.8169 89.1213% 53.1373% / 0.00);
@@ -69,8 +69,8 @@
   --primary: hsl(203.7736 87.6033% 52.5490%);
   --sidebar: hsl(228 9.8039% 10%);
   --spacing: 0.25rem;
-  --font-mono: Menlo, monospace;
-  --font-sans: Open Sans, sans-serif;
+  --font-mono: 'Geist Mono', monospace;
+  --font-sans: 'Geist', sans-serif;
   --secondary: hsl(195.0000 15.3846% 94.9020%);
   --shadow-lg: 0px 2px 0px 0px hsl(202.8169 89.1213% 53.1373% / 0.00), 0px 4px 6px -1px hsl(202.8169 89.1213% 53.1373% / 0.00);
   --shadow-md: 0px 2px 0px 0px hsl(202.8169 89.1213% 53.1373% / 0.00), 0px 2px 4px -1px hsl(202.8169 89.1213% 53.1373% / 0.00);
@@ -78,7 +78,7 @@
   --shadow-xl: 0px 2px 0px 0px hsl(202.8169 89.1213% 53.1373% / 0.00), 0px 8px 10px -1px hsl(202.8169 89.1213% 53.1373% / 0.00);
   --shadow-xs: 0px 2px 0px 0px hsl(202.8169 89.1213% 53.1373% / 0.00);
   --background: hsl(0 0% 0%);
-  --font-serif: Georgia, serif;
+  --font-serif: 'Source Serif 4', serif;
   --foreground: hsl(200 6.6667% 91.1765%);
   --shadow-2xl: 0px 2px 0px 0px hsl(202.8169 89.1213% 53.1373% / 0.00);
   --shadow-2xs: 0px 2px 0px 0px hsl(202.8169 89.1213% 53.1373% / 0.00);
@@ -105,27 +105,81 @@
     @apply border-border;
   }
 
+  html {
+    overflow-y: scroll;
+    width: 100%;
+    position: relative;
+  }
+
   body {
     @apply font-sans antialiased bg-background text-foreground;
+    overflow-x: hidden !important;
+    overflow-y: visible !important;
+    position: relative !important;
+    width: 100% !important;
+    padding: 0 !important;
+    margin: 0 !important;
   }
-}
 
-.nepal-pattern {
-  background-image: url("data:image/svg+xml,%3Csvg width='40' height='40' viewBox='0 0 40 40' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%23000' fill-opacity='0.02' fill-rule='evenodd'%3E%3Cpath d='m0 40l40-40h-40v40zm40 0v-40h-40l40 40z'/%3E%3C/g%3E%3C/svg%3E");
-}
-
-.cart-indicator {
-  animation: bounce 0.5s ease-in-out;
-}
-
-@keyframes bounce {
-  0%, 20%, 50%, 80%, 100% { 
-    transform: translateY(0); 
+  /* Prevent ALL elements from being affected by portal overlays */
+  body > *:not([data-radix-portal]) {
+    position: relative;
   }
-  40% { 
-    transform: translateY(-10px); 
+
+  #root {
+    width: 100%;
+    min-height: 100vh;
+    position: relative;
   }
-  60% { 
-    transform: translateY(-5px); 
+
+  .nepal-pattern {
+    background-image: url("data:image/svg+xml,%3Csvg width='40' height='40' viewBox='0 0 40 40' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%23000' fill-opacity='0.02' fill-rule='evenodd'%3E%3Cpath d='m0 40l40-40h-40v40zm40 0v-40h-40l40 40z'/%3E%3C/g%3E%3C/svg%3E");
+  }
+
+  .cart-indicator {
+    animation: bounce 0.5s ease-in-out;
+  }
+
+  @keyframes bounce {
+    0%, 20%, 50%, 80%, 100% {
+      transform: translateY(0);
+    }
+    40% {
+      transform: translateY(-10px);
+    }
+    60% {
+      transform: translateY(-5px);
+    }
+  }
+
+  /* Fix dialog positioning issues - specific targeting only for dialogs */
+  [data-radix-portal] [data-radix-dialog-content],
+  [data-radix-dialog-content],
+  [role="dialog"] {
+    position: fixed !important;
+    left: 50% !important;
+    top: 50% !important;
+    transform: translate(-50%, -50%) !important;
+    z-index: 50 !important;
+  }
+
+  /* Specific override for dialog content only */
+  div[data-radix-dialog-content] {
+    position: fixed !important;
+    left: 50% !important;
+    top: 50% !important;
+    transform: translate(-50%, -50%) !important;
+    z-index: 50 !important;
+  }
+
+  /* Ensure toast viewport positioning is preserved */
+  [data-radix-toast-viewport] {
+    position: fixed !important;
+    top: 0 !important;
+    right: 0 !important;
+    bottom: auto !important;
+    left: auto !important;
+    transform: none !important;
+    z-index: 100 !important;
   }
 }

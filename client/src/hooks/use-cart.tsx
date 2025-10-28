@@ -3,7 +3,7 @@ import type { CartItem } from "@/lib/api";
 
 interface CartContextType {
   items: CartItem[];
-  addItem: (item: Omit<CartItem, 'quantity'>) => void;
+  addItem: (item: Omit<CartItem, 'quantity'> | (Omit<CartItem, 'quantity'> & { quantity?: number })) => void;
   removeItem: (productId: string) => void;
   updateQuantity: (productId: string, quantity: number) => void;
   clearCart: () => void;
@@ -32,23 +32,25 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     localStorage.setItem('krisha-cart', JSON.stringify(items));
   }, [items]);
 
-  const addItem = (newItem: Omit<CartItem, 'quantity'>) => {
+  const addItem = (newItem: Omit<CartItem, 'quantity'> | (Omit<CartItem, 'quantity'> & { quantity?: number })) => {
     setItems(prev => {
+      const itemQuantity = ('quantity' in newItem && newItem.quantity) || 1;
       const existingItem = prev.find(item => item.productId === newItem.productId);
       
       if (existingItem) {
         // Check stock limit
-        if (existingItem.quantity >= newItem.stock) {
-          return prev; // Don't add if at stock limit
+        const newQuantity = existingItem.quantity + itemQuantity;
+        if (newQuantity > newItem.stock) {
+          return prev; // Don't add if would exceed stock limit
         }
         
         return prev.map(item =>
           item.productId === newItem.productId
-            ? { ...item, quantity: item.quantity + 1 }
+            ? { ...item, quantity: newQuantity }
             : item
         );
       } else {
-        return [...prev, { ...newItem, quantity: 1 }];
+        return [...prev, { ...newItem, quantity: itemQuantity }];
       }
     });
   };

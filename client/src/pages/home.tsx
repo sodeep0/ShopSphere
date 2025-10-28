@@ -1,74 +1,26 @@
-import { useState } from "react";
 import { Link } from "wouter";
-import { Flag, HandHeart, Heart, Star, ChevronRight } from "lucide-react";
+import { Flag, HandHeart, Heart, ChevronRight, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useQuery } from "@tanstack/react-query";
-import { getProducts } from "@/lib/api";
+import { getProducts, getCategories } from "@/lib/api";
 import { ProductCard } from "@/components/products/product-card";
-import type { Product } from "@shared/schema";
-
-const categories = [
-  {
-    id: 'felt-crafts',
-    name: 'Felt Crafts',
-    icon: '🧶',
-    count: 25
-  },
-  {
-    id: 'statues',
-    name: 'Statues', 
-    icon: '🗿',
-    count: 18
-  },
-  {
-    id: 'prayer-wheels',
-    name: 'Prayer Wheels',
-    icon: '☸️',
-    count: 12
-  },
-  {
-    id: 'handlooms',
-    name: 'Handlooms',
-    icon: '🧵',
-    count: 30
-  }
-];
-
-interface QuickViewModalProps {
-  product: Product | null;
-  onClose: () => void;
-}
-
-function QuickViewModal({ product, onClose }: QuickViewModalProps) {
-  if (!product) return null;
-
-  return (
-    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-card rounded-xl max-w-2xl w-full max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-        <div className="p-6">
-          <div className="grid md:grid-cols-2 gap-6">
-            <img src={product.image} alt={product.name} className="w-full rounded-lg" />
-            <div className="space-y-4">
-              <h2 className="text-2xl font-bold text-foreground">{product.name}</h2>
-              <p className="text-muted-foreground">{product.description}</p>
-              <div className="text-xl font-bold text-foreground">NPR {parseFloat(product.price).toLocaleString()}</div>
-              {product.artisan && <p className="text-sm text-muted-foreground">By {product.artisan}</p>}
-              <Button onClick={onClose}>Close</Button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
+import { useAuth } from "@/hooks/use-auth";
+import type { Product, Category } from "@shared/schema";
 
 export default function Home() {
-  const [quickViewProduct, setQuickViewProduct] = useState<Product | null>(null);
+  const { user } = useAuth();
 
-  const { data: featuredProducts = [], isLoading } = useQuery({
+  const { data: allProducts = [], isLoading: productsLoading } = useQuery<Product[]>({
     queryKey: ['/api/products'],
-    select: (data: Product[]) => data.slice(0, 4), // Show only first 4 as featured
+    queryFn: () => getProducts(),
   });
+  const featuredProducts = allProducts.slice(0, 4); // Show only first 4 as featured
+
+  const { data: allCategories = [], isLoading: categoriesLoading } = useQuery<Category[]>({
+    queryKey: ['/api/categories'],
+    queryFn: () => getCategories(),
+  });
+  const categories = allCategories.filter(cat => cat.isActive); // Only show active categories
 
   return (
     <div className="min-h-screen bg-background nepal-pattern">
@@ -87,7 +39,7 @@ export default function Home() {
                   <span className="text-primary"> Handicrafts</span>
                 </h1>
                 <p className="text-lg text-muted-foreground">
-                  Discover beautiful handcrafted treasures from skilled Nepali artisans. Each piece tells a story of tradition, culture, and craftsmanship.
+                  Discover beautiful handcrafted treasures from Nepal. Each piece tells a story of tradition, culture, and craftsmanship.
                 </p>
               </div>
               
@@ -97,6 +49,21 @@ export default function Home() {
                     Shop Now
                   </Button>
                 </Link>
+                {/* {!user && (
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <Link href="/register">
+                      <Button variant="outline" size="lg">
+                        <User className="w-4 h-4 mr-2" />
+                        Sign Up
+                      </Button>
+                    </Link>
+                    <Link href="/login">
+                      <Button variant="ghost" size="lg">
+                        Sign In
+                      </Button>
+                    </Link>
+                  </div>
+                )} */}
                 <div className="flex items-center space-x-2 text-sm text-muted-foreground">
                   <Heart className="w-4 h-4 text-primary" />
                   <span>Cash on Delivery available across Nepal</span>
@@ -110,8 +77,8 @@ export default function Home() {
                   <div className="text-sm text-muted-foreground">Products</div>
                 </div>
                 <div className="text-center">
-                  <div className="text-2xl font-bold text-foreground">50+</div>
-                  <div className="text-sm text-muted-foreground">Artisans</div>
+                  <div className="text-2xl font-bold text-foreground">20+</div>
+                  <div className="text-sm text-muted-foreground">Categories</div>
                 </div>
                 <div className="text-center">
                   <div className="text-2xl font-bold text-foreground">1000+</div>
@@ -124,7 +91,7 @@ export default function Home() {
               {/* Hero image showcasing Nepali handicrafts */}
               <div className="relative overflow-hidden rounded-2xl shadow-xl">
                 <img
-                  src="https://images.unsplash.com/photo-1578662996442-48f60103fc96?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&h=600"
+                  src="https://plus.unsplash.com/premium_photo-1700558685091-626b62cefdf1?q=80&w=687&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=800&h=600"
                   alt="Traditional Nepali handicrafts and prayer wheels"
                   className="w-full h-auto object-cover"
                 />
@@ -155,27 +122,40 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Categories Section */}
-      <section className="py-16 bg-card/50">
+      {/* Categories Section */} 
+      <section className="py-16 flex justify-center">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center space-y-4 mb-12">
             <h2 className="text-3xl font-bold text-foreground">Shop by Category</h2>
-            <p className="text-muted-foreground">Explore our carefully curated collection of traditional Nepali handicrafts</p>
+            <p className="text-muted-foreground">Explore our handcrafted collections</p>
           </div>
 
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-            {categories.map((category) => (
-              <Link key={category.id} href={`/products?category=${category.id}`}>
-                <div className="group cursor-pointer" data-testid={`category-${category.id}`}>
-                  <div className="bg-card border border-border rounded-xl p-6 text-center hover:shadow-lg transition-all duration-300 hover:-translate-y-1">
-                    <div className="text-4xl mb-4">{category.icon}</div>
-                    <h3 className="font-semibold text-foreground mb-2">{category.name}</h3>
-                    <p className="text-sm text-muted-foreground">{category.count} items</p>
-                  </div>
+          {categoriesLoading ? (
+            <div className="flex flex-wrap justify-center gap-6">
+              {[...Array(8)].map((_, i) => (
+                <div key={i} className="bg-card border border-border rounded-2xl p-8 animate-pulse min-h-[200px] w-[280px] flex flex-col items-center justify-center">
+                  <div className="w-20 h-20 bg-muted rounded-xl mb-4"></div>
+                  <div className="h-5 bg-muted rounded w-2/3 mb-2"></div>
+                  <div className="h-3 bg-muted rounded w-1/2"></div>
                 </div>
-              </Link>
-            ))}
-          </div>
+              ))}
+            </div>
+          ) : (
+            <div className="flex flex-wrap justify-center gap-6">
+              {categories.map((category) => (
+                <Link key={category.id} href={`/products?category=${category.slug}`}>
+                  <div className="bg-card border border-border rounded-2xl p-8 text-center hover:border-primary/50 hover:shadow-2xl transition-all duration-200 cursor-pointer group min-h-[200px] w-[280px] flex flex-col items-center justify-center">
+                    <div className="w-16 h-16 mx-auto mb-4 flex items-center justify-center text-4xl group-hover:scale-110 transition-transform duration-200 bg-muted rounded-xl">
+                      {category.icon || '🏺'}
+                    </div>
+                    <h3 className="font-semibold text-foreground text-lg group-hover:text-primary transition-colors duration-200">
+                      {category.name}
+                    </h3>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          )}
         </div>
       </section>
 
@@ -184,10 +164,10 @@ export default function Home() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center space-y-4 mb-12">
             <h2 className="text-3xl font-bold text-foreground">Featured Products</h2>
-            <p className="text-muted-foreground">Handpicked treasures from our artisan collection</p>
+            <p className="text-muted-foreground">Handpicked treasures from our collection</p>
           </div>
 
-          {isLoading ? (
+          {productsLoading ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
               {[...Array(4)].map((_, i) => (
                 <div key={i} className="bg-card border border-border rounded-xl p-4 animate-pulse">
@@ -205,7 +185,6 @@ export default function Home() {
                 <ProductCard
                   key={product.id}
                   product={product}
-                  onQuickView={(product) => setQuickViewProduct(product)}
                 />
               ))}
             </div>
@@ -221,11 +200,6 @@ export default function Home() {
           </div>
         </div>
       </section>
-
-      <QuickViewModal 
-        product={quickViewProduct}
-        onClose={() => setQuickViewProduct(null)}
-      />
     </div>
   );
 }

@@ -5,18 +5,13 @@ import { createServer as createViteServer, createLogger } from "vite";
 import { type Server } from "http";
 import viteConfig from "../vite.config";
 import { nanoid } from "nanoid";
+import { Logger } from "./utils/logger";
 
 const viteLogger = createLogger();
+const logger = new Logger();
 
 export function log(message: string, source = "express") {
-  const formattedTime = new Date().toLocaleTimeString("en-US", {
-    hour: "numeric",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: true,
-  });
-
-  console.log(`${formattedTime} [${source}] ${message}`);
+  logger.info(message, { source });
 }
 
 export async function setupVite(app: Express, server: Server) {
@@ -42,6 +37,10 @@ export async function setupVite(app: Express, server: Server) {
 
   app.use(vite.middlewares);
   app.use("*", async (req, res, next) => {
+    // Skip Vite processing for API routes and uploads directory
+    if (req.originalUrl.startsWith('/api/') || req.originalUrl.startsWith('/uploads/')) {
+      return next();
+    }
     const url = req.originalUrl;
 
     try {
